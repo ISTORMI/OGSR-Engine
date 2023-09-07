@@ -93,33 +93,33 @@ void IGame_Persistent::Disconnect()
         g_hud->OnDisconnected();
 
     // Kill object - save memory
-    ObjectPool.clear();
-    Render->models_Clear(TRUE); // У нас вызывается ещё и в CLevel::remove_objects() Если что - убрать оттуда, пусть будет тут.
+if ( strstr( Core.Params, "-noprefetch" ) ) {
+	  ObjectPool.clear();
+	  Render->models_Clear( TRUE ); // У нас вызывается ещё и в CLevel::remove_objects() Если что - убрать оттуда, пусть будет тут.
+	}
 }
 
 void IGame_Persistent::OnGameStart()
 {
-    // KRodin: префетчинг выключен ввиду своей бесполезности и прожорливости.
-    /*
-        LoadTitle								("st_prefetching_objects");
-        if (strstr(Core.Params,"-noprefetch"))	return;
+	LoadTitle								("st_prefetching_objects");
+	if (strstr(Core.Params,"-noprefetch"))	return;
 
-        // prefetch game objects & models
-        float	p_time		=			1000.f*Device.GetTimerGlobal()->GetElapsed_sec();
-        u32	mem_0			=			Memory.mem_usage()	;
+	// prefetch game objects & models
+	float	p_time		=			1000.f*Device.GetTimerGlobal()->GetElapsed_sec();
+	u32	mem_0			=			Memory.mem_usage()	;
 
-        Log				("Loading objects...");
-        ObjectPool.prefetch					();
-        Log				("Loading models...");
-        Render->models_Prefetch				();
-        Device.Resources->DeferredUpload	();
+	//Log				("Loading objects...");
+	//ObjectPool.prefetch					();
+	Log				("Loading models...");
+	Render->models_Prefetch				();
+	Device.m_pRender->ResourcesDeferredUpload(); //Device.Resources->DeferredUpload	();
 
-        p_time				=			1000.f*Device.GetTimerGlobal()->GetElapsed_sec() - p_time;
-        u32		p_mem		=			Memory.mem_usage() - mem_0	;
+	p_time				=			1000.f*Device.GetTimerGlobal()->GetElapsed_sec() - p_time;
+	u32		p_mem		=			Memory.mem_usage() - mem_0	;
 
-        Msg					("* [prefetch] time:    %d ms",	iFloor(p_time));
-        Msg					("* [prefetch] memory:  %dKb",	p_mem/1024);
-    */
+	Msg					("* [prefetch] time:    %d ms",	iFloor(p_time));
+	Msg					("* [prefetch] memory:  %dKb",	p_mem/1024);
+
 }
 
 void IGame_Persistent::OnGameEnd()
@@ -200,4 +200,8 @@ void IGame_Persistent::destroy_particles(const bool& all_particles)
             }
         }
     }
+}
+
+void IGame_Persistent::models_savePrefetch() {
+  Render->models_savePrefetch();
 }

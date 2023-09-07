@@ -62,7 +62,10 @@ void CLevel::remove_objects()
     stalker_animation_data_storage().clear();
 
     VERIFY(Render);
-    Render->models_Clear(TRUE /*FALSE*/);
+	if ( strstr( Core.Params, "-noprefetch" ) )
+	  Render->models_Clear( TRUE  );
+	else
+	  Render->models_Clear( FALSE );
     Render->clear_static_wallmarks();
 
 #ifdef DEBUG

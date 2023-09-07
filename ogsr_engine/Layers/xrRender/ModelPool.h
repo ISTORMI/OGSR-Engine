@@ -46,8 +46,11 @@ private:
     BOOL bLogging;
     BOOL bForceDiscard;
     BOOL bAllowChildrenDuplicate;
+    std::vector<std::string> m_prefetched;
 
     void Destroy();
+    void refresh_prefetch( LPCSTR low_name );
+	void process_vis_prefetch();
 
 public:
     CModelPool();
@@ -81,5 +84,6 @@ public:
     void Render(dxRender_Visual* m_pVisual, const Fmatrix& mTransform, int priority, bool strictB2F, float m_fLOD);
     void RenderSingle(dxRender_Visual* m_pVisual, const Fmatrix& mTransform, float m_fLOD);
 #endif
+    void save_vis_prefetch();
 };
 #endif // ModelPoolH

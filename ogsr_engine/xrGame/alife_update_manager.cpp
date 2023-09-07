@@ -22,6 +22,7 @@
 #include "restriction_space.h"
 #include "profiler.h"
 #include "mt_config.h"
+#include "gamepersistent.h"
 
 using namespace ALife;
 
@@ -200,6 +201,8 @@ bool CALifeUpdateManager::change_level(NET_Packet& net_packet)
         holder->o_Angle = holder_safe_angles;
     }
 
+
+    GamePersistent().models_savePrefetch();
     return (true);
 }
 

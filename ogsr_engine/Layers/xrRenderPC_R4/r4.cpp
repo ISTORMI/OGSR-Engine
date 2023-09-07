@@ -589,6 +589,7 @@ IRenderVisual* CRender::model_CreateParticles(LPCSTR name)
     }
 }
 void CRender::models_Prefetch() { Models->Prefetch(); }
+void CRender::models_savePrefetch() { Models->save_vis_prefetch(); }
 void CRender::models_Clear(BOOL b_complete) { Models->ClearPool(b_complete); }
 
 ref_shader CRender::getShader(int id)
@@ -1109,7 +1110,8 @@ HRESULT CRender::shader_compile(LPCSTR name, DWORD const* pSrcData, UINT SrcData
 
     defines.emplace_back("USE_SOFT_WATER", "1");
 
-    defines.emplace_back("USE_SOFT_PARTICLES", "1");
+    if (RImplementation.o.advancedpp && ps_r2_ls_flags.test(R2FLAG_SOFT_PARTICLES))
+        defines.emplace_back("USE_SOFT_PARTICLES", "1");
 
     if (RImplementation.o.advancedpp && ps_r2_ls_flags.test(R2FLAG_DOF))
         defines.emplace_back("USE_DOF", "1");
