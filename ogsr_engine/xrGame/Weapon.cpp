@@ -76,6 +76,7 @@ CWeapon::CWeapon(LPCSTR name)
     m_ef_weapon_type = u32(-1);
     m_UIScope = nullptr;
     m_set_next_ammoType_on_reload = u32(-1);
+    m_freelook_switch_back = false;
 }
 
 CWeapon::~CWeapon()
@@ -1606,6 +1607,14 @@ float CWeapon::CurrentZoomFactor()
 
 void CWeapon::OnZoomIn()
 {
+    	//Alun: Force switch to first-person for zooming
+	CActor *pA = smart_cast<CActor *>(H_Parent());
+	if (pA->active_cam() == eacLookAt)
+	{
+		pA->cam_Set(eacFirstEye);
+		m_freelook_switch_back = true;
+	}
+
     m_bZoomMode = true;
 
     // если в режиме ПГ - не будем давать включать динамический зум
@@ -1633,6 +1642,14 @@ void CWeapon::OnZoomIn()
 
 void CWeapon::OnZoomOut()
 {
+    	//Alun: Switch back to third-person if was forced
+	if (m_freelook_switch_back)
+	{
+		CActor *pA = smart_cast<CActor *>(H_Parent());
+		if (pA)
+			pA->cam_Set(eacLookAt);
+        m_freelook_switch_back = false;
+	}
     m_fZoomFactor = Core.Features.test(xrCore::Feature::ogse_wpn_zoom_system) ? 1.f : g_fov;
 
     if (m_bZoomMode)
