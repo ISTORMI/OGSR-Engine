@@ -6,6 +6,7 @@
 
 float psShedulerCurrent = 10.f;
 float psShedulerTarget = 10.f;
+float psShedulerMax = 10.f;
 const float psShedulerReaction = 0.1f;
 BOOL g_bSheduleInProgress = FALSE;
 
@@ -484,7 +485,7 @@ void CSheduler::Update()
     // занимать до 50 мс в кадре (клинч неписей вероятен, если много в онлайне объектов).
     //#pragma todo("KRodin: раскомментировал обратно, посмотрим, возможно это поможет от виснущих неписей в ОГСЕ.")
     // clamp(psShedulerTarget,3.f,50.f);
-    clamp(psShedulerTarget, 3.f, 66.f);
+    clamp(psShedulerTarget, 3.f, psShedulerMax); // clamp(psShedulerTarget, 3.f, 66.f);
 
     psShedulerCurrent = 0.9f * psShedulerCurrent + 0.1f * psShedulerTarget;
     Device.Statistic->fShedulerLoad = psShedulerCurrent;
