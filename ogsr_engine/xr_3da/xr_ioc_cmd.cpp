@@ -773,9 +773,6 @@ void CCC_Register()
     CMD4(CCC_Integer, "debug_destroy", &debug_destroy, FALSE, TRUE);
 #endif
 
-    extern float psShedulerMax;
-    CMD4(CCC_Float, "rs_sheduler_max", &psShedulerMax, 3.f, 66.f);
-
     CMD4(CCC_Float, "g_font_scale_x", &g_fontWidthScale, 0.2f, 5.0f);
     CMD4(CCC_Float, "g_font_scale_y", &g_fontHeightScale, 0.2f, 5.0f);
 
