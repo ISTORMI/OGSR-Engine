@@ -18,7 +18,7 @@
 
 xr_token* vid_quality_token = nullptr;
 
-constexpr xr_token FpsLockToken[] = {{"nofpslock", 0}, {"fpslock60", 60}, {"fpslock120", 120}, {"fpslock144", 144}, {"fpslock240", 240}, {nullptr, 0}};
+constexpr xr_token FpsLockToken[] = {{"nofpslock", 0}, {"fpslock30", 30}, {"fpslock60", 60}, {"fpslock75", 75}, {"fpslock120", 120}, {"fpslock144", 144}, {"fpslock240", 240}, {nullptr, 0}};
 
 #ifdef DEBUG
 constexpr xr_token vid_bpp_token[] = {{"16", 16}, {"32", 32}, {0, 0}};
