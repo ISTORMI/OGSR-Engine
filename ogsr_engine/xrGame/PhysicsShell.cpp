@@ -43,7 +43,7 @@ CPhysicsJoint* P_create_Joint(CPhysicsJoint::enumType type, CPhysicsElement* fir
     return joint;
 }
 
-CPhysicsShell* P_build_Shell(CGameObject* obj, bool not_active_state, BONE_P_MAP* bone_map)
+CPhysicsShell* P_build_Shell(CGameObject* obj, bool not_active_state, BONE_P_MAP* bone_map, bool not_set_bone_callbacks)
 {
     IKinematics* pKinematics = smart_cast<IKinematics*>(obj->Visual());
 
@@ -185,12 +185,13 @@ void ApplySpawnIniToPhysicShell(CInifile* ini, CPhysicsShell* physics_shell, boo
 {
     if (!ini)
         return;
+
     if (ini->section_exist("physics_common"))
     {
         fixed = fixed || (ini->line_exist("physics_common", "fixed_bones"));
-#pragma todo("not ignore static if non realy fixed! ")
         fix_bones(ini->r_string("physics_common", "fixed_bones"), physics_shell);
     }
+
     if (ini->section_exist("collide"))
     {
 #ifdef ANIMATED_PHYSICS_OBJECT_SUPPORT
@@ -214,7 +215,9 @@ void ApplySpawnIniToPhysicShell(CInifile* ini, CPhysicsShell* physics_shell, boo
             physics_shell->SetIgnoreRagDoll();
         }
         if (ini->line_exist("collide", "ignore_dynamic"))
+        {
             physics_shell->SetIgnoreDynamic();
+        }
 
 #ifdef ANIMATED_PHYSICS_OBJECT_SUPPORT
         // If need, then show here that it is needed to ignore collisions with "animated_object"
@@ -232,7 +235,7 @@ void ApplySpawnIniToPhysicShell(CInifile* ini, CPhysicsShell* physics_shell, boo
     if (ini->section_exist("animated_object"))
     {
         // Show that given "PhysicShell" animated
-        physics_shell->SetAnimated();
+        physics_shell->CreateShellAnimator();
     }
 #endif
 }

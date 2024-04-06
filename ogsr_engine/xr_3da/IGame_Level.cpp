@@ -27,17 +27,12 @@ IGame_Level::IGame_Level()
 
 IGame_Level::~IGame_Level()
 {
-    /*
-    if(strstr(Core.Params,"-nes_texture_storing") )
-        Device.Resources->StoreNecessaryTextures();
-    */
-
-    //.	DEL_INSTANCE				( pHUD			);
     xr_delete(pLevel);
 
     // Render-level unload
     Render->level_Unload();
     xr_delete(m_pCameras);
+
     // Unregister
     Device.seqRender.Remove(this);
     Device.seqFrame.Remove(this);
@@ -61,7 +56,6 @@ void IGame_Level::net_Stop()
 BOOL IGame_Level::Load(u32 dwNum)
 {
     // Initialize level data
-    pApp->Level_Set(dwNum);
     string_path temp;
     if (!FS.exist(temp, "$level$", "level.ltx"))
         Debug.fatal(DEBUG_INFO, "Can't find level configuration file '%s'.", temp);

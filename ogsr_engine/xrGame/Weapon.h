@@ -56,6 +56,7 @@ public:
     virtual void shedule_Update(u32 dt);
 
     virtual void renderable_Render();
+    virtual void render_hud_mode() override;
     virtual void OnDrawUI();
     virtual bool need_renderable();
 
@@ -451,6 +452,11 @@ protected:
     float m_fMinRadius;
     float m_fMaxRadius;
 
+    //Давать ли доиграть анимацию выстрела после выстрела (надо для анимаций с вылетающими гильзами)
+    bool dont_interrupt_shot_anm{};
+    //Является ли это оружие оружием из Gunslinger Mod
+    bool is_gunslinger_weapon{};
+
     //////////////////////////////////////////////////////////////////////////
     // партиклы
     //////////////////////////////////////////////////////////////////////////
@@ -546,8 +552,7 @@ public:
     virtual bool use_crosshair() const { return true; }
     bool show_crosshair();
     bool show_indicators();
-    virtual BOOL ParentMayHaveAimBullet();
-    virtual BOOL ParentIsActor();
+    virtual bool ParentIsActor() const override;
 
 private:
     float m_hit_probability[egdCount];
@@ -561,7 +566,7 @@ public:
     float GetHudFov() override;
 
     virtual void OnBulletHit();
-    virtual bool IsPartlyReloading() const { return m_set_next_ammoType_on_reload == u32(-1) && GetAmmoElapsed() > 0 && !IsMisfire(); }
+    virtual bool IsPartlyReloading() const;
 
     virtual void processing_deactivate() override
     {
@@ -670,4 +675,15 @@ public:
     }
     void SaveAttachableParams() override;
     void ParseCurrentItem(CGameFont* F) override;
+
+    	// Up
+    // Magazine system & etc
+    xr_vector<shared_str> bullets_bones;
+    int bullet_cnt{};
+    int last_hide_bullet{};
+    bool bHasBulletsToHide{};
+    bool bullet_update = true;
+
+    void UpdateVisualBullets();
+    void HUD_VisualBulletUpdate(bool force = false, int force_idx = -1);
 };

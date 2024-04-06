@@ -1,6 +1,6 @@
 //---------------------------------------------------------------------------
 #include "stdafx.h"
-#pragma hdrstop
+
 
 #include "GameMtlLib.h"
 //#include "../include/xrapi/xrapi.h"
@@ -101,6 +101,8 @@ void CGameMtlLibrary::Load()
         OBJ->close();
     }
 
+    //const u32 actor_material_idx = GetMaterialID(pSettings->r_string("actor", "material"));
+
     OBJ = F->open_chunk(GAMEMTLS_CHUNK_MTLS_PAIR);
     if (OBJ)
     {
@@ -110,6 +112,19 @@ void CGameMtlLibrary::Load()
             SGameMtlPair* M = xr_new<SGameMtlPair>(this);
             M->Load(*O);
             material_pairs.push_back(M);
+
+            /*if (M->mtl0 == actor_material_idx)
+            {
+                if (!M->StepSoundNames.empty())
+                {
+                    Msg("~ MtlPair with step ID0=%d, ID1=%d [%s]", M->mtl0, M->mtl1, (*GetMaterialItByID(M->mtl1))->m_Name.c_str());
+
+                    for (const auto& step_sound_name : M->StepSoundNames)
+                    {
+                        Msg("~ MtlPair step sound [%s]", step_sound_name.c_str());
+                    }
+                }
+            }*/
         }
         OBJ->close();
     }
@@ -119,8 +134,15 @@ void CGameMtlLibrary::Load()
     for (GameMtlPairIt p_it = material_pairs.begin(); material_pairs.end() != p_it; ++p_it)
     {
         SGameMtlPair* S = *p_it;
-        int idx0 = GetMaterialIdx(S->mtl0) * material_count + GetMaterialIdx(S->mtl1);
-        int idx1 = GetMaterialIdx(S->mtl1) * material_count + GetMaterialIdx(S->mtl0);
+        u16 idx_1 = GetMaterialIdx(S->mtl0);
+        u16 idx_2 = GetMaterialIdx(S->mtl1);
+        if (idx_1 >= materials.size() || idx_2 >= materials.size())
+        {
+            Msg("~ Wrong material pars: mtl0=[%d] mtl1=[%d]", S->mtl0, S->mtl1);
+            continue;
+        }
+        int idx0 = idx_1 * material_count + idx_2;
+        int idx1 = idx_2 * material_count + idx_1;
         material_pairs_rt[idx0] = S;
         material_pairs_rt[idx1] = S;
     }

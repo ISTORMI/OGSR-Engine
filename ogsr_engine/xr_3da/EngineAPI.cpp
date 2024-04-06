@@ -13,7 +13,6 @@ extern xr_token* vid_quality_token;
 // Construction/Destruction
 //////////////////////////////////////////////////////////////////////
 
-void __cdecl dummy(void){};
 CEngineAPI::CEngineAPI()
 {
     hGame = 0;
@@ -21,22 +20,10 @@ CEngineAPI::CEngineAPI()
     hTuner = 0;
     pCreate = 0;
     pDestroy = 0;
-    tune_pause = dummy;
-    tune_resume = dummy;
 }
 
 CEngineAPI::~CEngineAPI()
 {
-    // destroy quality token here
-    if (vid_quality_token)
-    {
-        for (int i = 0; vid_quality_token[i].name; i++)
-        {
-            xr_free(vid_quality_token[i].name);
-        }
-        xr_free(vid_quality_token);
-        vid_quality_token = nullptr;
-    }
 }
 
 #ifndef EXCLUDE_R1
@@ -45,13 +32,13 @@ extern u32 renderer_value; // con cmd
 
 ENGINE_API int g_current_renderer = 0;
 
-ENGINE_API bool is_enough_address_space_available()
-{
-    SYSTEM_INFO system_info;
-    GetSystemInfo(&system_info);
-
-    return (*(size_t*)&system_info.lpMaximumApplicationAddress) > 0x90000000ull;
-}
+//ENGINE_API bool is_enough_address_space_available()
+//{
+//    SYSTEM_INFO system_info;
+//    GetSystemInfo(&system_info);
+//
+//    return (*(size_t*)&system_info.lpMaximumApplicationAddress) > 0x90000000ull;
+//}
 
 #ifdef XRGAME_STATIC
 extern "C" {
@@ -195,6 +182,16 @@ void CEngineAPI::Destroy()
     pDestroy = 0;
     Engine.Event._destroy();
     XRC.r_clear_compact();
+    // destroy quality token here
+    if (vid_quality_token)
+    {
+        for (int i = 0; vid_quality_token[i].name; i++)
+        {
+            xr_free(vid_quality_token[i].name);
+        }
+        xr_free(vid_quality_token);
+        vid_quality_token = nullptr;
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////

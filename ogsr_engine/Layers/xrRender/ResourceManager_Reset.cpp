@@ -1,12 +1,9 @@
 #include "stdafx.h"
-#pragma hdrstop
+
 
 #include "ResourceManager.h"
-#ifndef _EDITOR
 #include "../../xr_3da/Render.h"
-#else
-#include "../../Include/xrAPI/xrAPI.h"
-#endif
+
 
 void CResourceManager::reset_begin()
 {
@@ -85,15 +82,8 @@ void CResourceManager::reset_end()
         //	DX10 cut 		for (u32 _it=0; _it<rt.size(); _it++)	rt[_it]->reset_end	();
     }
 
-    // create state-blocks
-    {
-        for (u32 _it = 0; _it < v_states.size(); _it++)
-#if defined(USE_DX10) || defined(USE_DX11)
-            v_states[_it]->state = ID3DState::Create(v_states[_it]->state_code);
-#else //	USE_DX10
-            v_states[_it]->state = v_states[_it]->state_code.record();
-#endif //	USE_DX10
-    }
+    for (u32 _it = 0; _it < v_states.size(); _it++)
+        v_states[_it]->state = ID3DState::Create(v_states[_it]->state_code);
 
     // create everything, renderer may use
     ::Render->reset_end();
@@ -111,7 +101,6 @@ void mdump(C c)
 
 CResourceManager::~CResourceManager()
 {
-    DestroyNecessaryTextures();
     Dump(false);
 }
 

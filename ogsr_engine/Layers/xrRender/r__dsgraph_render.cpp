@@ -29,9 +29,7 @@ void __fastcall mapNormal_Render(mapNormalItems& N)
     for (auto& Ni : N)
     {
         float LOD = calcLOD(Ni.ssa, Ni.pVisual->vis.sphere.R);
-#ifdef USE_DX11
         RCache.LOD.set_LOD(LOD);
-#endif
         Ni.pVisual->Render(LOD);
     }
 }
@@ -50,9 +48,7 @@ void __fastcall mapMatrix_Render(mapMatrixItems& N)
         RImplementation.apply_lmaterial();
 
         float LOD = calcLOD(Ni.ssa, Ni.pVisual->vis.sphere.R);
-#ifdef USE_DX11
         RCache.LOD.set_LOD(LOD);
-#endif
         Ni.pVisual->Render(LOD);
     }
     N.clear();
@@ -70,9 +66,7 @@ void __fastcall sorted_L1(mapSorted_Node* N)
     RImplementation.apply_lmaterial();
 
     const float LOD = calcLOD(N->key, V->vis.sphere.R);
-#ifdef USE_DX11
     RCache.LOD.set_LOD(LOD);
-#endif
     V->Render(LOD);
 }
 
@@ -81,25 +75,15 @@ IC bool cmp_vs_mat(mapMatrixVS::TNode* N1, mapMatrixVS::TNode* N2) { return (N1-
 
 IC bool cmp_ps_nrm(mapNormalPS::TNode* N1, mapNormalPS::TNode* N2)
 {
-#ifdef USE_DX11
     return (N1->val.mapCS.ssa > N2->val.mapCS.ssa);
-#else
-    return (N1->val.ssa > N2->val.ssa);
-#endif
 }
 IC bool cmp_ps_mat(mapMatrixPS::TNode* N1, mapMatrixPS::TNode* N2)
 {
-#ifdef USE_DX11
     return (N1->val.mapCS.ssa > N2->val.mapCS.ssa);
-#else
-    return (N1->val.ssa > N2->val.ssa);
-#endif
 }
 
-#if defined(USE_DX10) || defined(USE_DX11)
 IC bool cmp_gs_nrm(mapNormalGS::TNode* N1, mapNormalGS::TNode* N2) { return (N1->val.ssa > N2->val.ssa); }
 IC bool cmp_gs_mat(mapMatrixGS::TNode* N1, mapMatrixGS::TNode* N2) { return (N1->val.ssa > N2->val.ssa); }
-#endif //	USE_DX10
 
 IC bool cmp_cs_nrm(mapNormalCS::TNode* N1, mapNormalCS::TNode* N2) { return (N1->val.ssa > N2->val.ssa); }
 IC bool cmp_cs_mat(mapMatrixCS::TNode* N1, mapMatrixCS::TNode* N2) { return (N1->val.ssa > N2->val.ssa); }
@@ -182,8 +166,8 @@ IC bool cmp_textures_lexN_mat(mapMatrixTextures::TNode* N1, mapMatrixTextures::T
 IC bool cmp_textures_ssa_nrm(mapNormalTextures::TNode* N1, mapNormalTextures::TNode* N2) { return (N1->val.ssa > N2->val.ssa); }
 IC bool cmp_textures_ssa_mat(mapMatrixTextures::TNode* N1, mapMatrixTextures::TNode* N2) { return (N1->val.ssa > N2->val.ssa); }
 
-void sort_tlist_nrm(xr_vector<mapNormalTextures::TNode*, render_alloc<mapNormalTextures::TNode*>>& lst,
-                    xr_vector<mapNormalTextures::TNode*, render_alloc<mapNormalTextures::TNode*>>& temp, mapNormalTextures& textures, BOOL bSSA)
+void sort_tlist_nrm(xr_vector<mapNormalTextures::TNode*>& lst,
+                    xr_vector<mapNormalTextures::TNode*>& temp, mapNormalTextures& textures, BOOL bSSA)
 {
     int amount = textures.begin()->key->size();
     if (bSSA)
@@ -232,8 +216,8 @@ void sort_tlist_nrm(xr_vector<mapNormalTextures::TNode*, render_alloc<mapNormalT
     }
 }
 
-void sort_tlist_mat(xr_vector<mapMatrixTextures::TNode*, render_alloc<mapMatrixTextures::TNode*>>& lst,
-                    xr_vector<mapMatrixTextures::TNode*, render_alloc<mapMatrixTextures::TNode*>>& temp, mapMatrixTextures& textures, BOOL bSSA)
+void sort_tlist_mat(xr_vector<mapMatrixTextures::TNode*>& lst,
+                    xr_vector<mapMatrixTextures::TNode*>& temp, mapMatrixTextures& textures, BOOL bSSA)
 {
     int amount = textures.begin()->key->size();
     if (bSSA)
@@ -284,7 +268,7 @@ void sort_tlist_mat(xr_vector<mapMatrixTextures::TNode*, render_alloc<mapMatrixT
 
 void R_dsgraph_structure::r_dsgraph_render_graph(u32 _priority, bool _clear)
 {
-    // PIX_EVENT(r_dsgraph_render_graph);
+    PIX_EVENT(r_dsgraph_render_graph);
     Device.Statistic->RenderDUMP.Begin();
 
     // **************************************************** NORMAL
@@ -305,7 +289,6 @@ void R_dsgraph_structure::r_dsgraph_render_graph(u32 _priority, bool _clear)
                 mapNormalVS::TNode* Nvs = nrmVS[vs_id];
                 RCache.set_VS(Nvs->key);
 
-#if defined(USE_DX10) || defined(USE_DX11)
                 //	GS setup
                 mapNormalGS& gs = Nvs->val;
                 gs.ssa = 0;
@@ -319,26 +302,17 @@ void R_dsgraph_structure::r_dsgraph_render_graph(u32 _priority, bool _clear)
 
                     mapNormalPS& ps = Ngs->val;
                     ps.ssa = 0;
-#else //	USE_DX10
-                mapNormalPS& ps = Nvs->val;
-                ps.ssa = 0;
-#endif //	USE_DX10
-
                     ps.getANY_P(nrmPS);
                     std::sort(nrmPS.begin(), nrmPS.end(), cmp_ps_nrm);
                     for (u32 ps_id = 0; ps_id < nrmPS.size(); ps_id++)
                     {
                         mapNormalPS::TNode* Nps = nrmPS[ps_id];
                         RCache.set_PS(Nps->key);
-#ifdef USE_DX11
                         mapNormalCS& cs = Nps->val.mapCS;
                         cs.ssa = 0;
                         RCache.set_HS(Nps->val.hs);
                         RCache.set_DS(Nps->val.ds);
-#else
-                    mapNormalCS& cs = Nps->val;
-                    cs.ssa = 0;
-#endif
+
                         cs.getANY_P(nrmCS);
                         std::sort(nrmCS.begin(), nrmCS.end(), cmp_cs_nrm);
                         for (u32 cs_id = 0; cs_id < nrmCS.size(); cs_id++)
@@ -386,12 +360,10 @@ void R_dsgraph_structure::r_dsgraph_render_graph(u32 _priority, bool _clear)
                     nrmPS.clear();
                     if (_clear)
                         ps.clear();
-#if defined(USE_DX10) || defined(USE_DX11)
                 }
                 nrmGS.clear();
                 if (_clear)
                     gs.clear();
-#endif //	USE_DX10
             }
             nrmVS.clear();
             if (_clear)
@@ -414,7 +386,6 @@ void R_dsgraph_structure::r_dsgraph_render_graph(u32 _priority, bool _clear)
             mapMatrixVS::TNode* Nvs = matVS[vs_id];
             RCache.set_VS(Nvs->key);
 
-#if defined(USE_DX10) || defined(USE_DX11)
             mapMatrixGS& gs = Nvs->val;
             gs.ssa = 0;
 
@@ -427,10 +398,6 @@ void R_dsgraph_structure::r_dsgraph_render_graph(u32 _priority, bool _clear)
 
                 mapMatrixPS& ps = Ngs->val;
                 ps.ssa = 0;
-#else //	USE_DX10
-            mapMatrixPS& ps = Nvs->val;
-            ps.ssa = 0;
-#endif //	USE_DX10
 
                 ps.getANY_P(matPS);
                 std::sort(matPS.begin(), matPS.end(), cmp_ps_mat);
@@ -439,15 +406,11 @@ void R_dsgraph_structure::r_dsgraph_render_graph(u32 _priority, bool _clear)
                     mapMatrixPS::TNode* Nps = matPS[ps_id];
                     RCache.set_PS(Nps->key);
 
-#ifdef USE_DX11
                     mapMatrixCS& cs = Nps->val.mapCS;
                     cs.ssa = 0;
                     RCache.set_HS(Nps->val.hs);
                     RCache.set_DS(Nps->val.ds);
-#else
-                mapMatrixCS& cs = Nps->val;
-                cs.ssa = 0;
-#endif
+
                     cs.getANY_P(matCS);
                     std::sort(matCS.begin(), matCS.end(), cmp_cs_mat);
                     for (u32 cs_id = 0; cs_id < matCS.size(); cs_id++)
@@ -493,12 +456,10 @@ void R_dsgraph_structure::r_dsgraph_render_graph(u32 _priority, bool _clear)
                 matPS.clear();
                 if (_clear)
                     ps.clear();
-#if defined(USE_DX10) || defined(USE_DX11)
             }
             matGS.clear();
             if (_clear)
                 gs.clear();
-#endif //	USE_DX10
         }
         matVS.clear();
         if (_clear)
@@ -512,14 +473,14 @@ void R_dsgraph_structure::r_dsgraph_render_graph(u32 _priority, bool _clear)
 // HUD render
 void R_dsgraph_structure::r_dsgraph_render_hud()
 {
-    // PIX_EVENT(r_dsgraph_render_hud);
+    PIX_EVENT(r_dsgraph_render_hud);
 
     // Change projection
     Fmatrix Pold = Device.mProject;
     Fmatrix FTold = Device.mFullTransform;
     Fmatrix Vold = Device.mView;
     Device.mView.build_camera_dir(Fvector().set(0.f, 0.f, 0.f), Device.vCameraDirection, Device.vCameraTop);
-    Device.mProject.build_projection(deg2rad(psHUD_FOV < 1.f ? psHUD_FOV * Device.fFOV : psHUD_FOV), Device.fASPECT, HUD_VIEWPORT_NEAR,
+    Device.mProject.build_projection(deg2rad(psHUD_FOV <= 1.f ? psHUD_FOV * Device.fFOV : psHUD_FOV), Device.fASPECT, HUD_VIEWPORT_NEAR,
                                      g_pGamePersistent->Environment().CurrentEnv->far_plane);
 
     Device.mFullTransform.mul(Device.mProject, Device.mView);
@@ -531,10 +492,6 @@ void R_dsgraph_structure::r_dsgraph_render_hud()
     mapHUD.traverseLR(sorted_L1);
     mapHUD.clear();
 
-#if RENDER == R_R1
-    if (g_hud && g_hud->RenderActiveItemUIQuery())
-        r_dsgraph_render_hud_ui(); // hud ui
-#endif
 
     rmNormal();
 
@@ -555,19 +512,19 @@ void R_dsgraph_structure::r_dsgraph_render_hud_ui()
     Fmatrix FTold = Device.mFullTransform;
     Fmatrix Vold = Device.mView;
     Device.mView.build_camera_dir(Fvector().set(0.f, 0.f, 0.f), Device.vCameraDirection, Device.vCameraTop);
-    Device.mProject.build_projection(deg2rad(psHUD_FOV < 1.f ? psHUD_FOV * Device.fFOV : psHUD_FOV), Device.fASPECT, HUD_VIEWPORT_NEAR,
+    Device.mProject.build_projection(deg2rad(psHUD_FOV <= 1.f ? psHUD_FOV * Device.fFOV : psHUD_FOV), Device.fASPECT, HUD_VIEWPORT_NEAR,
                                      g_pGamePersistent->Environment().CurrentEnv->far_plane);
 
     Device.mFullTransform.mul(Device.mProject, Device.mView);
     RCache.set_xform_view(Device.mView);
     RCache.set_xform_project(Device.mProject);
 
-#if RENDER != R_R1
+
     // Targets, use accumulator for temporary storage
     const ref_rt rt_null;
     RCache.set_RT(0, 1);
     RCache.set_RT(0, 2);
-#if (RENDER == R_R3) || (RENDER == R_R4)
+#if (RENDER == R_R4)
     if (!RImplementation.o.dx10_msaa)
     {
         if (RImplementation.o.albedo_wo)
@@ -582,13 +539,8 @@ void R_dsgraph_structure::r_dsgraph_render_hud_ui()
         else
             RImplementation.Target->u_setrt(RImplementation.Target->rt_Color, rt_null, rt_null, RImplementation.Target->rt_MSAADepth->pZRT);
     }
-#else // (RENDER==R_R3) || (RENDER==R_R4)
-    if (RImplementation.o.albedo_wo)
-        RImplementation.Target->u_setrt(RImplementation.Target->rt_Accumulator, rt_null, rt_null, HW.pBaseZB);
-    else
-        RImplementation.Target->u_setrt(RImplementation.Target->rt_Color, rt_null, rt_null, HW.pBaseZB);
-#endif // (RENDER==R_R3) || (RENDER==R_R4)
-#endif // RENDER!=R_R1
+#endif // (RENDER==R_R4)
+
 
     rmNear();
     g_hud->RenderActiveItemUI();
@@ -615,7 +567,7 @@ void R_dsgraph_structure::r_dsgraph_render_sorted()
     Fmatrix FTold = Device.mFullTransform;
     Fmatrix Vold = Device.mView;
     Device.mView.build_camera_dir(Fvector().set(0.f, 0.f, 0.f), Device.vCameraDirection, Device.vCameraTop);
-    Device.mProject.build_projection(deg2rad(psHUD_FOV < 1.f ? psHUD_FOV * Device.fFOV : psHUD_FOV), Device.fASPECT, HUD_VIEWPORT_NEAR,
+    Device.mProject.build_projection(deg2rad(psHUD_FOV <= 1.f ? psHUD_FOV * Device.fFOV : psHUD_FOV), Device.fASPECT, HUD_VIEWPORT_NEAR,
                                      g_pGamePersistent->Environment().CurrentEnv->far_plane);
 
     Device.mFullTransform.mul(Device.mProject, Device.mView);
@@ -640,7 +592,7 @@ void R_dsgraph_structure::r_dsgraph_render_sorted()
 // strict-sorted render
 void R_dsgraph_structure::r_dsgraph_render_emissive()
 {
-#if RENDER != R_R1
+
     // Sorted (back to front)
     mapEmissive.traverseLR(sorted_L1);
     mapEmissive.clear();
@@ -650,7 +602,7 @@ void R_dsgraph_structure::r_dsgraph_render_emissive()
     Fmatrix FTold = Device.mFullTransform;
     Fmatrix Vold = Device.mView;
     Device.mView.build_camera_dir(Fvector().set(0.f, 0.f, 0.f), Device.vCameraDirection, Device.vCameraTop);
-    Device.mProject.build_projection(deg2rad(psHUD_FOV < 1.f ? psHUD_FOV * Device.fFOV : psHUD_FOV), Device.fASPECT, HUD_VIEWPORT_NEAR,
+    Device.mProject.build_projection(deg2rad(psHUD_FOV <= 1.f ? psHUD_FOV * Device.fFOV : psHUD_FOV), Device.fASPECT, HUD_VIEWPORT_NEAR,
                                      g_pGamePersistent->Environment().CurrentEnv->far_plane);
 
     Device.mFullTransform.mul(Device.mProject, Device.mView);
@@ -671,18 +623,16 @@ void R_dsgraph_structure::r_dsgraph_render_emissive()
     Device.mView = Vold;
     RCache.set_xform_view(Device.mView);
     RCache.set_xform_project(Device.mProject);
-#endif
+
 }
 
 //////////////////////////////////////////////////////////////////////////
 // strict-sorted render
 void R_dsgraph_structure::r_dsgraph_render_wmarks()
 {
-#if RENDER != R_R1
     // Sorted (back to front)
     mapWmark.traverseLR(sorted_L1);
     mapWmark.clear();
-#endif
 }
 
 //////////////////////////////////////////////////////////////////////////
@@ -719,8 +669,7 @@ void R_dsgraph_structure::r_dsgraph_render_subspace(IRender_Sector* _sector, CFr
         // Check if camera is too near to some portal - if so force DualRender
         Fvector box_radius;
         box_radius.set(EPS_L * 20, EPS_L * 20, EPS_L * 20);
-        RImplementation.Sectors_xrc.box_options(CDB::OPT_FULL_TEST);
-        RImplementation.Sectors_xrc.box_query(RImplementation.rmPortals, _cop, box_radius);
+        RImplementation.Sectors_xrc.box_query(CDB::OPT_FULL_TEST, RImplementation.rmPortals, _cop, box_radius);
         for (int K = 0; K < RImplementation.Sectors_xrc.r_count(); K++)
         {
             CPortal* pPortal = (CPortal*)RImplementation.Portals[RImplementation.rmPortals->get_tris()[RImplementation.Sectors_xrc.r_begin()[K].id].dummy];
@@ -774,10 +723,10 @@ void R_dsgraph_structure::r_dsgraph_render_subspace(IRender_Sector* _sector, CFr
             }
         }
 
-#if RENDER != R_R1
+
         if (g_pGameLevel && phase == RImplementation.PHASE_SMAP && ps_r2_ls_flags_ext.test(R2FLAGEXT_ACTOR_SHADOW))
             g_hud->Render_Actor_Shadow(); // R2 actor Shadow
-#endif
+
     }
 
     // Restore

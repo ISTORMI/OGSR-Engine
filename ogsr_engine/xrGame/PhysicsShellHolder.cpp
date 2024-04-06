@@ -20,10 +20,18 @@
 
 CPhysicsShellHolder::CPhysicsShellHolder() { init(); }
 
+CPhysicsShellHolder::~CPhysicsShellHolder()
+{
+    xr_delete(m_ph_sound_player);
+}
+
 void CPhysicsShellHolder::net_Destroy()
 {
     //удалить партиклы из ParticlePlayer
     CParticlesPlayer::net_DestroyParticles();
+    CCharacterPhysicsSupport* char_support = character_physics_support();
+    if (char_support)
+        char_support->destroy_imotion();
     inherited::net_Destroy();
     b_sheduled = false;
     deactivate_physics_shell();
@@ -59,6 +67,12 @@ BOOL CPhysicsShellHolder::net_Spawn(CSE_Abstract* DC)
     return ret;
 }
 
+void CPhysicsShellHolder::Load(LPCSTR section)
+{
+    CGameObject::Load(section);
+    m_collide_snd_dist = READ_IF_EXISTS(pSettings, r_fvector2, section, "collide_snd_dist", Fvector2().set(-1.f, -1.f));
+}
+
 void CPhysicsShellHolder::PHHit(SHit& H)
 {
     if (H.impulse > 0)
@@ -83,6 +97,8 @@ void CPhysicsShellHolder::init()
     m_pPhysicsShell = NULL;
     b_sheduled = false;
     m_activation_speed_is_overriden = false;
+    m_ph_sound_player = xr_new<CPHSoundPlayer>(this);
+    m_collide_snd_dist = {-1.f, -1.f};
 }
 void CPhysicsShellHolder::correct_spawn_pos()
 {
@@ -201,6 +217,35 @@ void CPhysicsShellHolder::PHSetMaterial(LPCSTR m)
         m_pPhysicsShell->SetMaterial(m);
 }
 
+IPhysicsShell* CPhysicsShellHolder::physics_shell() const
+{
+    if (m_pPhysicsShell)
+        return m_pPhysicsShell;
+    const CCharacterPhysicsSupport* char_support = character_physics_support();
+    if (!char_support || !char_support->animation_collision())
+        return 0;
+    return char_support->animation_collision()->shell();
+}
+
+IPhysicsElement* CPhysicsShellHolder::physics_character() const
+{
+    const CCharacterPhysicsSupport* char_support = character_physics_support();
+    if (!char_support)
+        return 0;
+    const CPHMovementControl* mov = character_physics_support()->movement();
+    VERIFY(mov);
+    return mov->IElement();
+}
+
+const IObjectPhysicsCollision* CPhysicsShellHolder::physics_collision()
+{
+    CCharacterPhysicsSupport* char_support = character_physics_support();
+    if (char_support)
+        char_support->create_animation_collision();
+
+    return this;
+}
+
 void CPhysicsShellHolder::PHGetLinearVell(Fvector& velocity)
 {
     if (!m_pPhysicsShell)
@@ -254,6 +299,10 @@ void CPhysicsShellHolder::OnChangeVisual()
     inherited::OnChangeVisual();
     if (0 == renderable.visual)
     {
+        CCharacterPhysicsSupport* char_support = character_physics_support();
+        if (char_support)
+            char_support->destroy_imotion();
+
         if (m_pPhysicsShell)
             m_pPhysicsShell->Deactivate();
         xr_delete(m_pPhysicsShell);
@@ -408,7 +457,7 @@ bool CPhysicsShellHolder::ActorCanCapture() const
         return true;
     
     std::string p{cNameVisual().c_str()};
-    while (SplitFilename(p))
+    while (xr_string_utils::SplitFilename(p))
     {
         if (pSettings->line_exist("ph_capture_visuals", p.c_str()))
             return true;
@@ -454,3 +503,5 @@ void CPhysicsShellHolder::SetActivationSpeedOverride(Fvector const& speed)
     m_overriden_activation_speed = speed;
     m_activation_speed_is_overriden = true;
 }
+
+Fvector2 CPhysicsShellHolder::CollideSndDist() const { return m_collide_snd_dist; }

@@ -26,8 +26,6 @@
 
 #include "UIDragDropListEx.h"
 
-extern int keyname_to_dik(LPCSTR);
-
 #define ARIAL14_FONT_NAME "arial_14"
 #define ARIAL21_FONT_NAME "arial_21"
 
@@ -291,6 +289,8 @@ bool CUIXmlInit::InitText(CUIXml& xml_doc, const char* path, int index, IUITextC
         pWnd->SetTextAlignment(CGameFont::alRight);
     else if (0 == xr_strcmp(al, "l"))
         pWnd->SetTextAlignment(CGameFont::alLeft);
+    else if (0 == xr_strcmp(al, "j"))
+        pWnd->SetTextAlignment(CGameFont::alJustified);
 
     shared_str text = xml_doc.Read(path, index, NULL);
     CStringTable st;
@@ -302,7 +302,31 @@ bool CUIXmlInit::InitText(CUIXml& xml_doc, const char* path, int index, IUITextC
     return true;
 }
 ////////////////////////////////////////////////////////////////////////////////////////////
-extern int keyname_to_dik(LPCSTR);
+
+void CUIXmlInit::InitAccel(CUIXml& xml_doc, const char* path, int index, CUIButton* pWnd)
+{
+    LPCSTR accel = xml_doc.ReadAttrib(path, index, "accel", nullptr);
+    if (accel)
+    {
+        const int acc = keyname_to_dik(accel);
+        pWnd->SetAccelerator(acc, 0);
+    }
+    accel = xml_doc.ReadAttrib(path, index, "accel_ext", nullptr);
+    if (accel)
+    {
+        const int acc = keyname_to_dik(accel);
+        pWnd->SetAccelerator(acc, 1);
+    }
+
+    LPCSTR action_name = xml_doc.ReadAttrib(path, index, "accel_action", nullptr);
+    if (action_name)
+    {
+        if (const EGameActions action = action_name_to_id(action_name); action != kNOTBINDED)
+        {
+            pWnd->SetAcceleratorAction(action);
+        }
+    }
+}
 
 bool CUIXmlInit::Init3tButton(CUIXml& xml_doc, const char* path, int index, CUI3tButton* pWnd)
 {
@@ -344,7 +368,7 @@ bool CUIXmlInit::Init3tButton(CUIXml& xml_doc, const char* path, int index, CUI3
 
     int r = xml_doc.ReadAttribInt(path, index, "check_mode", -1);
     if (r != -1)
-        pWnd->SetCheckMode((r == 1) ? true : false);
+        pWnd->SetCheckMode((r == 1));
 
     LPCSTR text_hint = xml_doc.ReadAttrib(path, index, "hint", NULL);
     if (text_hint)
@@ -380,18 +404,7 @@ bool CUIXmlInit::InitButton(CUIXml& xml_doc, LPCSTR path, int index, CUIButton* 
 
     InitStatic(xml_doc, path, index, pWnd);
 
-    LPCSTR accel = xml_doc.ReadAttrib(path, index, "accel", NULL);
-    if (accel)
-    {
-        int acc = keyname_to_dik(accel);
-        pWnd->SetAccelerator(acc, 0);
-    }
-    accel = xml_doc.ReadAttrib(path, index, "accel_ext", NULL);
-    if (accel)
-    {
-        int acc = keyname_to_dik(accel);
-        pWnd->SetAccelerator(acc, 1);
-    }
+    InitAccel(xml_doc, path, index, pWnd);
 
     float shadowOffsetX = xml_doc.ReadAttribFlt(path, index, "shadow_offset_x", 0);
     float shadowOffsetY = xml_doc.ReadAttribFlt(path, index, "shadow_offset_y", 0);
@@ -1113,11 +1126,25 @@ bool CUIXmlInit::InitTexture(CUIXml& xml_doc, const char* path, int index, IUIMu
 bool CUIXmlInit::InitTexture(CUIXml& xml_doc, const char* path, int index, IUISingleTextureOwner* pWnd)
 {
     string256 buf;
-    InitTexture(xml_doc, path, index, (IUIMultiTextureOwner*)pWnd);
+    shared_str texture;
+    shared_str shader;
     strconcat(sizeof(buf), buf, path, ":texture");
 
-    Frect rect;
+    if (xml_doc.NavigateToNode(buf))
+    {
+        texture = xml_doc.Read(buf, index, NULL);
+        shader = xml_doc.ReadAttrib(buf, index, "shader", NULL);
+    }
 
+    if (!!texture)
+    {
+        if (!!shader)
+            pWnd->InitTextureEx(*texture, *shader);
+        else
+            pWnd->InitTexture(*texture);
+    }
+
+    Frect rect;
     rect.x1 = xml_doc.ReadAttribFlt(buf, index, "x", 0);
     rect.y1 = xml_doc.ReadAttribFlt(buf, index, "y", 0);
     rect.x2 = rect.x1 + xml_doc.ReadAttribFlt(buf, index, "width", 0);

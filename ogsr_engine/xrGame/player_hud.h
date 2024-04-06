@@ -119,7 +119,7 @@ struct movement_layer
     bool active;
     float m_power;
     Fmatrix blend;
-    u8 m_part;
+    u8 m_part{};
 
     movement_layer()
     {
@@ -131,7 +131,9 @@ struct movement_layer
         m_power = 1.f;
     }
 
-    void Load(LPCSTR name)
+    ~movement_layer() { xr_delete(anm); }
+
+    void Load(LPCSTR name) const
     {
         if (xr_strcmp(name, anm->Name()))
             anm->Load(name);
@@ -204,7 +206,12 @@ struct script_layer
         active = true;
     }
 
-    bool IsPlaying() { return anm->IsPlaying(); }
+    ~script_layer()
+    {
+        xr_delete(anm);
+    }
+
+    bool IsPlaying() const { return anm->IsPlaying(); }
 
     void Stop(bool bForce)
     {
@@ -372,7 +379,7 @@ public:
     xr_vector<hand_motions*> m_hand_motions;
     player_hud_motion_container* get_hand_motions(LPCSTR section, IKinematicsAnimated* animatedHudItem);
 
-	void PlayBlendAnm(LPCSTR name, u8 part = 0, float speed = 1.f, float power = 1.f, bool bLooped = true, bool no_restart = false);
+    float PlayBlendAnm(LPCSTR name, u8 part = 0, float speed = 1.f, float power = 1.f, bool bLooped = true, bool no_restart = false);
     void StopBlendAnm(LPCSTR name, bool bForce = false);
     void StopAllBlendAnms(bool bForce);
     float SetBlendAnmTime(LPCSTR name, float time);

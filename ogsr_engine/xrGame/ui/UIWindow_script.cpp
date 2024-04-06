@@ -159,7 +159,8 @@ void CUIWindow::script_register(lua_State* L)
                   .def("GetMinScrollPos", &CUIScrollView::GetMinScrollPos)
                   .def("GetMaxScrollPos", &CUIScrollView::GetMaxScrollPos)
                   .def("GetCurrentScrollPos", &CUIScrollView::GetCurrentScrollPos)
-                  .def("SetScrollPos", &CUIScrollView::SetScrollPos),
+                  .def("SetScrollPos", &CUIScrollView::SetScrollPos)
+                  .def("ForceUpdate", &CUIScrollView::ForceUpdate),
 
               class_<CIconParams>("CIconParams")
                   .def(constructor<LPCSTR>())
@@ -167,7 +168,7 @@ void CUIWindow::script_register(lua_State* L)
                   .def_readonly("grid_width", &CIconParams::grid_width)
                   .def_readonly("grid_height", &CIconParams::grid_height)
                   .def_readonly("grid_x", &CIconParams::grid_x)
-                  .def_readonly("grid_y", &CIconParams::grid_x)
+                  .def_readonly("grid_y", &CIconParams::grid_y)
                   .property("icon_name", &CIconParams__get_name)
                   .def("original_rect", &CIconParams::original_rect)
                   .def("set_shader", (void(CIconParams::*)(CUIStatic*)) & CIconParams::set_shader),

@@ -19,8 +19,10 @@ protected:
 protected:
     BOOL bListenerMoved;
 
+    bool e_currentPaused{false};
+
     CSoundRender_Environment e_current;
-    CSoundRender_Environment e_target;
+    CSoundRender_Environment* e_target;
 
 public:
     typedef std::pair<ref_sound_data_ptr, float> event;
@@ -99,15 +101,19 @@ public:
     virtual void statistic(CSound_stats* dest, CSound_stats_ext* ext);
 
     // listener
-    //	virtual const Fvector&				listener_position		( )=0;
     virtual void update_listener(const Fvector& P, const Fvector& D, const Fvector& N, float dt) = 0;
-    // eax listener
-    void i_eax_commit_setting();
-    void i_eax_listener_set(CSound_environment* E);
-    void i_eax_listener_get(CSound_environment* E);
 
+    // eax listener
+    void i_eax_listener_set(CSound_environment* E);
+    void i_eax_commit_setting();
+
+    // efx listener
     void i_efx_listener_set(CSound_environment* E);
     bool i_efx_commit_setting();
+
+    virtual CSound_environment* DbgCurrentEnv() override { return e_target; }
+    virtual void DbgCurrentEnvPaused(bool v) override { e_currentPaused = v; }
+    virtual void DbgCurrentEnvSave() override { env_save_all(); }
 
 public:
     CSoundRender_Source* i_create_source(LPCSTR name);
@@ -123,10 +129,12 @@ public:
 
     virtual float get_occlusion_to(const Fvector& hear_pt, const Fvector& snd_pt, float dispersion = 0.2f);
     float get_occlusion(Fvector& P, float R, Fvector* occ);
+    CSoundRender_Environment* get_environment_def();
     CSoundRender_Environment* get_environment(const Fvector& P);
 
     void env_load();
     void env_unload();
+    void env_save_all() const;
     void env_apply();
 
 protected: // EFX

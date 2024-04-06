@@ -39,16 +39,21 @@ void CCF_Skeleton::SElement::center(Fvector& center) const
     default: NODEFAULT;
     }
 }
+
 bool pred_find_elem(const CCF_Skeleton::SElement& E, u16 elem) { return E.elem_id < elem; }
+
 bool CCF_Skeleton::_ElementCenter(u16 elem_id, Fvector& e_center)
 {
+    bool r = false;
+    elements_lock.lock();
     ElementVecIt it = std::lower_bound(elements.begin(), elements.end(), elem_id, pred_find_elem);
     if (it->elem_id == elem_id)
     {
         it->center(e_center);
-        return true;
+        r = true;
     }
-    return false;
+    elements_lock.unlock();
+    return r;
 }
 
 IC bool RAYvsOBB(const Fmatrix& IM, const Fvector& b_hsize, const Fvector& S, const Fvector& D, float& R, BOOL bCull)
@@ -110,7 +115,10 @@ void CCF_Skeleton::BuildState()
     if (vis_mask != K->LL_GetBonesVisible())
     {
         vis_mask = K->LL_GetBonesVisible();
+
+        elements_lock.lock();
         elements.clear();
+
         bv_box.set(pVisual->getVisData().box);
         bv_box.getsphere(bv_sphere.P, bv_sphere.R);
         for (u16 i = 0; i < K->LL_BoneCount(); i++)
@@ -122,8 +130,10 @@ void CCF_Skeleton::BuildState()
                 continue;
             if (shape.flags.is(SBoneShape::sfNoPickable))
                 continue;
+
             elements.emplace_back(i, shape.type);
         }
+        elements_lock.unlock();
     }
 
     for (ElementVecIt I = elements.begin(); I != elements.end(); I++)
@@ -186,7 +196,6 @@ void CCF_Skeleton::BuildState()
 
 void CCF_Skeleton::BuildTopLevel()
 {
-    dwFrameTL = Device.dwFrame;
     IRenderVisual* K = owner->Visual();
     vis_data& vis = K->getVisData();
     Fbox& B = vis.box;
@@ -199,118 +208,81 @@ void CCF_Skeleton::BuildTopLevel()
     VERIFY(_valid(bv_sphere));
 }
 
-BOOL CCF_Skeleton::_RayQuery(const collide::ray_defs& Q, collide::rq_results& R)
+void CCF_Skeleton::Calculate()
 {
     if (dwFrameTL != Device.dwFrame)
+    {
         BuildTopLevel();
+
+        dwFrameTL = Device.dwFrame;
+    }
+
+    IKinematics* K = PKinematics(owner->Visual());
+    if (dwFrame != Device.dwFrame || K->LL_GetBonesVisible() != vis_mask)
+    {
+        // Model changed between ray-picks
+        BuildState();
+    }
+}
+
+BOOL CCF_Skeleton::_RayQuery(const collide::ray_defs& Q, collide::rq_results& R)
+{
+    // не будет тут обновлять стейт костей если мы не на основном потоке.
+    // он тут или с прошлого кадра уже есть или даже если чуть кривой - не важно
+    // если обновлять - будут дергатся модели
+    if (Device.OnMainThread())
+    {
+        Calculate();
+    }
 
     Fsphere w_bv_sphere;
     owner->XFORM().transform_tiny(w_bv_sphere.P, bv_sphere.P);
     w_bv_sphere.R = bv_sphere.R;
 
-    //
     float tgt_dist = Q.range;
-    float aft[2];
-    int quant;
-    Fsphere::ERP_Result res = w_bv_sphere.intersect(Q.start, Q.dir, tgt_dist, quant, aft);
-    if ((Fsphere::rpNone == res) || ((Fsphere::rpOriginOutside == res) && (aft[0] > tgt_dist)))
+    Fsphere::ERP_Result res = w_bv_sphere.intersect(Q.start, Q.dir, tgt_dist);
+    if (res == Fsphere::rpNone)
         return FALSE;
 
-    if (dwFrame != Device.dwFrame)
-        BuildState();
+    auto iterate_elements = [&](const ElementVec& elements_vec) {
+        BOOL bHIT{};
+        for (const auto& elem : elements_vec)
+        {
+            if (!elem.valid())
+                continue;
+            bool res = false;
+            float range = Q.range;
+            switch (elem.type)
+            {
+            case SBoneShape::stBox: res = RAYvsOBB(elem.b_IM, elem.b_hsize, Q.start, Q.dir, range, Q.flags & CDB::OPT_CULL); break;
+            case SBoneShape::stSphere: res = RAYvsSPHERE(elem.s_sphere, Q.start, Q.dir, range, Q.flags & CDB::OPT_CULL); break;
+            case SBoneShape::stCylinder: res = RAYvsCYLINDER(elem.c_cylinder, Q.start, Q.dir, range, Q.flags & CDB::OPT_CULL); break;
+            }
+            if (res)
+            {
+                bHIT = TRUE;
+                R.append_result(owner, range, elem.elem_id, Q.flags & CDB::OPT_ONLYNEAREST);
+                if (Q.flags & CDB::OPT_ONLYFIRST)
+                    break;
+            }
+        }
+        return bHIT;
+    };
+
+    if (!Device.OnMainThread())
+    {
+        elements_lock.lock();
+        const ElementVec copy_elements{elements};
+        elements_lock.unlock();
+        return iterate_elements(copy_elements);
+    }
     else
     {
-        IKinematics* K = PKinematics(owner->Visual());
-        if (K->LL_GetBonesVisible() != vis_mask)
-        {
-            // Model changed between ray-picks
-            dwFrame = Device.dwFrame - 1;
-            BuildState();
-        }
+        return iterate_elements(elements);
     }
-
-    BOOL bHIT = FALSE;
-    for (ElementVecIt I = elements.begin(); I != elements.end(); I++)
-    {
-        if (!I->valid())
-            continue;
-        bool res = false;
-        float range = Q.range;
-        switch (I->type)
-        {
-        case SBoneShape::stBox: res = RAYvsOBB(I->b_IM, I->b_hsize, Q.start, Q.dir, range, Q.flags & CDB::OPT_CULL); break;
-        case SBoneShape::stSphere: res = RAYvsSPHERE(I->s_sphere, Q.start, Q.dir, range, Q.flags & CDB::OPT_CULL); break;
-        case SBoneShape::stCylinder: res = RAYvsCYLINDER(I->c_cylinder, Q.start, Q.dir, range, Q.flags & CDB::OPT_CULL); break;
-        }
-        if (res)
-        {
-            bHIT = TRUE;
-            R.append_result(owner, range, I->elem_id, Q.flags & CDB::OPT_ONLYNEAREST);
-            if (Q.flags & CDB::OPT_ONLYFIRST)
-                break;
-        }
-    }
-    return bHIT;
 }
 
-//----------------------------------------------------------------------------------
-CCF_EventBox::CCF_EventBox(CObject* O) : ICollisionForm(O, cftShape)
-{
-    Fvector A[8], B[8];
-    A[0].set(-1, -1, -1);
-    A[1].set(-1, -1, +1);
-    A[2].set(-1, +1, +1);
-    A[3].set(-1, +1, -1);
-    A[4].set(+1, +1, +1);
-    A[5].set(+1, +1, -1);
-    A[6].set(+1, -1, +1);
-    A[7].set(+1, -1, -1);
 
-    const Fmatrix& T = O->XFORM();
-    for (int i = 0; i < 8; i++)
-    {
-        A[i].mul(.5f);
-        T.transform_tiny(B[i], A[i]);
-    }
-    bv_box.set(-.5f, -.5f, -.5f, +.5f, +.5f, +.5f);
-    Fvector R;
-    R.set(bv_box.min);
-    T.transform_dir(R);
-    bv_sphere.R = R.magnitude();
-
-    Planes[0].build(B[0], B[3], B[5]);
-    Planes[1].build(B[1], B[2], B[3]);
-    Planes[2].build(B[6], B[5], B[4]);
-    Planes[3].build(B[4], B[2], B[1]);
-    Planes[4].build(B[3], B[2], B[4]);
-    Planes[5].build(B[1], B[0], B[6]);
-}
-
-BOOL CCF_EventBox::Contact(CObject* O)
-{
-    IRenderVisual* V = O->Visual();
-    vis_data& vis = V->getVisData();
-    Fvector& P = vis.sphere.P;
-    float R = vis.sphere.R;
-
-    Fvector PT;
-    O->XFORM().transform_tiny(PT, P);
-
-    for (int i = 0; i < 6; i++)
-    {
-        if (Planes[i].classify(PT) > R)
-            return FALSE;
-    }
-    return TRUE;
-}
-BOOL CCF_EventBox::_RayQuery(const collide::ray_defs& Q, collide::rq_results& R) { return FALSE; }
-/*
-void CCF_EventBox::_BoxQuery(const Fbox& B, const Fmatrix& M, u32 flags)
-{   return; }
-*/
-
-//----------------------------------------------------------------------------------
-//----------------------------------------------------------------------------------
 //----------------------------------------------------------------------------------
 CCF_Shape::CCF_Shape(CObject* _owner) : ICollisionForm(_owner, cftShape) {}
 BOOL CCF_Shape::_RayQuery(const collide::ray_defs& Q, collide::rq_results& R)

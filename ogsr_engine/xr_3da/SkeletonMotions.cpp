@@ -91,14 +91,15 @@ BOOL motions_value::load(LPCSTR N, IReader* data, vecBones* bones)
                 MP->r_stringZ(buf, sizeof(buf));
                 u16 m_idx = u16(MP->r_u32());
                 *b_it = find_bone_id(bones, buf);
-                VERIFY3(*b_it != BI_NONE, "Can't find bone:", buf);
+                ASSERT_FMT_DBG(*b_it != BI_NONE, "!![%s][%s] Can't find bone: [%s]", __FUNCTION__, N, buf);
                 if (bRes)
                     rm_bones[m_idx] = u16(*b_it);
             }
             part_bone_cnt = u16(part_bone_cnt + (u16)PART.bones.size());
         }
 
-        VERIFY3(part_bone_cnt == (u16)bones->size(), "Different bone count '%s'", N);
+        ASSERT_FMT_DBG(part_bone_cnt == (u16)bones->size(), "!![%s] Different bone count for [%s]! part_bone_cnt: [%u], bones->size(): [%u]", __FUNCTION__, N, part_bone_cnt,
+                       bones->size());
 
         if (bRes)
         {
@@ -144,7 +145,7 @@ BOOL motions_value::load(LPCSTR N, IReader* data, vecBones* bones)
 
     u32 dwCNT = 0;
     MS->r_chunk_safe(0, &dwCNT, sizeof(dwCNT));
-    VERIFY(dwCNT < 0x3FFF); // MotionID 2 bit - slot, 14 bit - motion index
+    ASSERT_FMT_DBG(dwCNT < 0x3FFF, "!![%s][%s] dwCNT is [%u]", __FUNCTION__, N, dwCNT); // MotionID 2 bit - slot, 14 bit - motion index
 
     m_motions.reserve(bones->size());
 
@@ -158,18 +159,21 @@ BOOL motions_value::load(LPCSTR N, IReader* data, vecBones* bones)
         string128 mname;
         R_ASSERT(MS->find_chunk(m_idx + 1));
         MS->r_stringZ(mname, sizeof(mname));
-#ifdef DEBUG
-        // sanity check
-        xr_strlwr(mname);
-        auto I = m_motion_map.find(mname);
-        VERIFY3(I != m_motion_map.end(), "Can't find motion:", mname);
-        VERIFY3(I->second == m_idx, "Invalid motion index:", mname);
-#endif
+
+        if constexpr (false) //В ганслингере полно таких ошибок в анимациях, не вижу смысла спамить ими в лог
+        {
+            // sanity check
+            xr_strlwr(mname);
+            auto I = m_motion_map.find(mname);
+            ASSERT_FMT_DBG(I != m_motion_map.end(), "!![%s][%s] Can't find motion: [%s]", __FUNCTION__, N, mname);
+            ASSERT_FMT_DBG(I->second == m_idx, "!![%s][%s] Invalid motion index: [%s]", __FUNCTION__, N, mname);
+        }
+
         u32 dwLen = MS->r_u32();
         for (u32 i = 0; i < bones->size(); i++)
         {
             u16 bone_id = rm_bones[i];
-            VERIFY2(bone_id != BI_NONE, "Invalid remap index.");
+            ASSERT_FMT(bone_id != BI_NONE, "!![%s][%s] Invalid remap index!", __FUNCTION__, N);
             CMotion& M = m_motions[bones->at(bone_id)->name][m_idx];
             M.set_count(dwLen);
             M.set_flags(MS->r_u8());
@@ -177,27 +181,27 @@ BOOL motions_value::load(LPCSTR N, IReader* data, vecBones* bones)
             if (M.test_flag(flRKeyAbsent))
             {
                 CKeyQR* r = (CKeyQR*)MS->pointer();
-                u32 crc_q = crc32(r, sizeof(CKeyQR));
-                M._keysR.create(crc_q, 1, r);
+                //u32 crc_q = crc32(r, sizeof(CKeyQR));
+                M._keysR.create(1, r);
                 MS->advance(1 * sizeof(CKeyQR));
             }
             else
             {
-                u32 crc_q = MS->r_u32();
-                M._keysR.create(crc_q, dwLen, (CKeyQR*)MS->pointer());
+                /*u32 crc_q = */MS->r_u32();
+                M._keysR.create(dwLen, (CKeyQR*)MS->pointer());
                 MS->advance(dwLen * sizeof(CKeyQR));
             }
             if (M.test_flag(flTKeyPresent))
             {
-                u32 crc_t = MS->r_u32();
+                /*u32 crc_t = */MS->r_u32();
                 if (M.test_flag(flTKey16IsBit))
                 {
-                    M._keysT16.create(crc_t, dwLen, (CKeyQT16*)MS->pointer());
+                    M._keysT16.create(dwLen, (CKeyQT16*)MS->pointer());
                     MS->advance(dwLen * sizeof(CKeyQT16));
                 }
                 else
                 {
-                    M._keysT8.create(crc_t, dwLen, (CKeyQT8*)MS->pointer());
+                    M._keysT8.create(dwLen, (CKeyQT8*)MS->pointer());
                     MS->advance(dwLen * sizeof(CKeyQT8));
                 };
 
@@ -226,15 +230,13 @@ MotionVec* motions_value::bone_motions(shared_str bone_name)
 }
 //-----------------------------------
 motions_container::motions_container() {}
-// extern shared_str s_bones_array_const;
+
 motions_container::~motions_container()
 {
     //	clean	(false);
     //	clean	(true);
     //	dump	();
     VERIFY(container.empty());
-    //	Igor:
-    // s_bones_array_const = 0;
 }
 
 bool motions_container::has(shared_str key) { return (container.find(key) != container.end()); }

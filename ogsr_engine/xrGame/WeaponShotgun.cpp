@@ -62,8 +62,8 @@ void CWeaponShotgun::OnShot()
 {
     inherited::OnShot();
 
-    if (/*!m_sndBreechJammed.sounds.empty() ||*/ !m_sndBreech.sounds.empty())
-        PlaySound(/*(IsMisfire() && !m_sndBreechJammed.sounds.empty()) ? m_sndBreechJammed :*/ m_sndBreech, get_LastFP());
+    if (!m_sndBreech.sounds.empty())
+        PlaySound((IsMisfire() && !m_sndBreechJammed.sounds.empty()) ? m_sndBreechJammed : m_sndBreech, get_LastFP());
 }
 
 void CWeaponShotgun::Fire2Start()
@@ -86,13 +86,10 @@ void CWeaponShotgun::Fire2Start()
 
             CWeapon::FireStart();
 
-            if (!iAmmoElapsed)
-                SwitchState(eMagEmpty);
-            else
-                SwitchState((iAmmoElapsed < iMagazineSize) ? eFire : eFire2);
+            SwitchState((iAmmoElapsed < iMagazineSize) ? eFire : eFire2);
         }
     }
-    else if (!iAmmoElapsed)
+    else
         SwitchState(eMagEmpty);
 }
 
@@ -273,11 +270,18 @@ bool CWeaponShotgun::Action(s32 cmd, u32 flags)
     if (inherited::Action(cmd, flags))
         return true;
 
-    if (m_bTriStateReload && GetState() == eReload && !IsMisfire() && (cmd == kWPN_FIRE || cmd == kWPN_NEXT) && flags & CMD_START &&
-        (m_sub_state == eSubstateReloadInProcess || m_sub_state == eSubstateReloadBegin)) //остановить перезагрузку
+    if (m_bTriStateReload && GetState() == eReload && !IsMisfire() && (flags & CMD_START) && (m_sub_state == eSubstateReloadInProcess || m_sub_state == eSubstateReloadBegin))
     {
-        m_stop_triStateReload = true;
-        return true;
+        switch (cmd)
+        {
+        case kWPN_FIRE:
+        case kWPN_NEXT:
+        //case kWPN_RELOAD:
+        case kWPN_ZOOM:
+            // остановить перезарядку
+            m_stop_triStateReload = true;
+            return true;
+        }
     }
 
 #ifndef DUPLET_STATE_SWITCH
@@ -311,8 +315,6 @@ void CWeaponShotgun::OnAnimationEnd(u32 state)
         if (IsMisfire())
         {
             SwitchMisfire(false);
-            if (iAmmoElapsed > 0) //
-                SetAmmoElapsed(iAmmoElapsed - 1); //
         }
         m_sub_state = eSubstateReloadBegin;
         SwitchState(eIdle);

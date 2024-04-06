@@ -22,8 +22,8 @@ public:
         u32 bShadow : 1;
         u32 bVolumetric : 1;
         u32 bHudMode : 1;
-
-    } flags;
+        u32 bMoveable : 1;
+    } flags{};
     Fvector position;
     Fvector direction;
     Fvector right;
@@ -72,6 +72,7 @@ public:
         bool visible; // visible/invisible
         bool pending; // test is still pending
         u16 smap_ID;
+        float distance;
     } vis;
 
     union _xform
@@ -105,6 +106,7 @@ public:
 
 public:
     virtual void set_type(LT type) { flags.type = type; }
+    virtual u32 get_type() const override { return flags.type; }
     virtual void set_active(bool b);
     virtual bool get_active() { return flags.bActive; }
     virtual void set_shadow(bool b) { flags.bShadow = b; }
@@ -133,6 +135,8 @@ public:
     virtual void set_texture(LPCSTR name);
     virtual void set_hud_mode(bool b) { flags.bHudMode = b; }
     virtual bool get_hud_mode() { return flags.bHudMode; };
+
+    virtual void set_moveable(bool b) override { flags.bMoveable = b; }
 
     virtual void spatial_move();
     virtual Fvector spatial_sector_point();

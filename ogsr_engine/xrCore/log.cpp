@@ -14,7 +14,7 @@ string_path logFName{};
 static void AddOne(std::string& split, bool first_line)
 {
     static std::recursive_mutex logCS;
-    std::scoped_lock<decltype(logCS)> lock(logCS);
+    std::scoped_lock lock(logCS);
 
     if (IsDebuggerPresent())
     { //Вывод в отладчик студии
@@ -34,7 +34,7 @@ static void AddOne(std::string& split, bool first_line)
             const auto time = system_clock::to_time_t(now);
             const auto ms = duration_cast<milliseconds>(now.time_since_epoch()) - duration_cast<seconds>(now.time_since_epoch());
             std::strftime(buf, sizeof(buf), "%d.%m.%y %H:%M:%S", std::localtime(&time));
-            sprintf_s(curTime, "\n[%s.%03lld] ", buf, ms.count());
+            sprintf_s(curTime, "\n[%s.%03lld] [%u] ", buf, ms.count(), _Thrd_id());
             split = curTime + split;
         }
         else
@@ -53,7 +53,7 @@ static void AddOne(std::string& split, bool first_line)
 
     if (last_str == split)
     {
-        std::string tmp = split.c_str();
+        std::string tmp = split;
 
         if (items_count == 0)
             items_count = 2;
@@ -61,7 +61,7 @@ static void AddOne(std::string& split, bool first_line)
             items_count++;
 
         tmp += " [";
-        tmp += std::to_string(items_count).c_str();
+        tmp += std::to_string(items_count);
         tmp += "]";
 
         LogFile.erase(LogFile.end() - 1);
@@ -97,7 +97,7 @@ void Log(const std::string& str)
     const char& color_s = str.front();
     const bool have_color = std::find(color_codes.begin(), color_codes.end(), color_s) != color_codes.end(); //Ищем в начале строки цветовой код
 
-    std::vector<std::string> substrs;
+    xr_vector<std::string> substrs;
     size_t beg{};
     for (size_t end{}; (end = str.find("\n", end)) != std::string::npos; ++end) // Разбиваем текст по "\n"
     {
@@ -182,7 +182,7 @@ void CreateLog(BOOL nl)
                 xr_strconcat(logFName, "logs\\", temp);
             }
 
-            logstream.imbue(std::locale(""));
+            //logstream.imbue(std::locale(""));
             VerifyPath(logFName);
             logstream.open(logFName);
         }
@@ -197,5 +197,5 @@ void CreateLog(BOOL nl)
         logstream.flush();
     }
 
-    LogFile.reserve(500);
+    LogFile.reserve(5000);
 }

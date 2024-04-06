@@ -6,6 +6,7 @@
 #include "pure.h"
 #include "../xrcore/ftimer.h"
 #include "stats.h"
+#include <numeric>
 
 extern u32 g_dwFPSlimit;
 
@@ -23,10 +24,6 @@ class engine_impl;
 
 class IRenderDevice
 {
-public:
-    virtual CStatsPhysics* _BCL StatPhysics() = 0;
-    virtual void _BCL AddSeqFrame(pureFrame* f, bool mt) = 0;
-    virtual void _BCL RemoveSeqFrame(pureFrame* f) = 0;
 };
 
 class ENGINE_API CRenderDeviceData
@@ -68,8 +65,10 @@ public:
     Fvector vCameraRight;
 
     Fmatrix mView;
+    Fmatrix mInvView;
     Fmatrix mProject;
     Fmatrix mFullTransform;
+    Fmatrix mInvFullTransform;
 
     // Copies of corresponding members. Used for synchronization.
     Fvector vCameraPosition_saved;
@@ -81,10 +80,32 @@ public:
     float fFOV;
     float fASPECT;
 
+    // Генерирует псевдо-рандомное число в диапазоне от 0 до 1 https://stackoverflow.com/a/10625698
+    template <typename T, size_t sizeDest>
+    inline T NoiseRandom(const T (&args)[sizeDest]) const
+    {
+        constexpr double consts[]{23.14069263277926, 2.665144142690225};
+
+        static_assert(sizeDest == std::size(consts));
+        static_assert(std::is_floating_point_v<T>);
+
+        constexpr auto frac = [](const double& x) {
+            double res = x - std::floor(x);
+            if constexpr (std::is_same_v<double, T>)
+                return res;
+            else
+                return static_cast<T>(res);
+        };
+
+        return frac(std::cos(std::inner_product(std::begin(args), std::end(args), std::begin(consts), 0.0)) * 12345.6789);
+    }
+
 protected:
     u32 Timer_MM_Delta;
     CTimer_paused Timer;
     CTimer_paused TimerGlobal;
+
+    std::thread::id mainThreadId;
 
 public:
     // Registrators
@@ -97,7 +118,8 @@ public:
     CRegistrator<pureScreenResolutionChanged> seqResolutionChanged;
 
     HWND m_hWnd;
-    //	CStats*									Statistic;
+
+    bool OnMainThread() const { return std::this_thread::get_id() == mainThreadId; }
 };
 
 class ENGINE_API CRenderDeviceBase : public IRenderDevice, public CRenderDeviceData
@@ -115,32 +137,22 @@ private:
     RECT m_rcWindowBounds;
     RECT m_rcWindowClient;
 
-    // u32										Timer_MM_Delta;
-    // CTimer_paused							Timer;
-    // CTimer_paused							TimerGlobal;
     CTimer TimerMM;
 
     void _Create(LPCSTR shName);
     void _Destroy(BOOL bKeepTextures);
     void _SetupStates();
 
+    xr_deque<fastdelegate::FastDelegate<void()>> seqParallel;
+
 public:
-    //   HWND									m_hWnd;
     LRESULT MsgProc(HWND, UINT, WPARAM, LPARAM);
 
-    //	u32										dwFrame;
-    //	u32										dwPrecacheFrame;
     u32 dwPrecacheTotal;
-
-    //	u32										dwWidth, dwHeight;
     float fWidth_2, fHeight_2;
-    //	BOOL									b_is_Ready;
-    //	BOOL									b_is_Active;
     void OnWM_Activate(WPARAM wParam, LPARAM lParam);
 
 public:
-    // ref_shader								m_WireShader;
-    // ref_shader								m_SelectionShader;
 
     IRenderDeviceRender* m_pRender;
 
@@ -158,53 +170,17 @@ public:
             mProject._43 += EPS_L;
         }
         m_pRender->SetCacheXform(mView, mProject);
-        // R_ASSERT(0);
-        //	TODO: re-implement set projection
-        // RCache.set_xform_project			(mProject);
     }
 
     void DumpResourcesMemoryUsage() { m_pRender->ResourcesDumpMemoryUsage(); }
 
 public:
-    // Registrators
-    // CRegistrator	<pureRender			>			seqRender;
-    //	CRegistrator	<pureAppActivate	>			seqAppActivate;
-    //	CRegistrator	<pureAppDeactivate	>			seqAppDeactivate;
-    //	CRegistrator	<pureAppStart		>			seqAppStart;
-    //	CRegistrator	<pureAppEnd			>			seqAppEnd;
-    // CRegistrator	<pureFrame			>			seqFrame;
     CRegistrator<pureFrame> seqFrameMT;
     CRegistrator<pureDeviceReset> seqDeviceReset;
-    xr_vector<fastdelegate::FastDelegate<void()>> seqParallel;
 
     CSecondVPParams m_SecondViewport; //--#SM+#-- +SecondVP+
 
-    // Dependent classes
-    // CResourceManager*						Resources;
-
     CStats* Statistic;
-
-    // Engine flow-control
-    // float									fTimeDelta;
-    // float									fTimeGlobal;
-    // u32										dwTimeDelta;
-    // u32										dwTimeGlobal;
-    // u32										dwTimeContinual;
-
-    // Cameras & projection
-    // Fvector									vCameraPosition;
-    // Fvector									vCameraDirection;
-    // Fvector									vCameraTop;
-    // Fvector									vCameraRight;
-
-    // Fmatrix									mView;
-    // Fmatrix									mProject;
-    // Fmatrix									mFullTransform;
-
-    Fmatrix mInvFullTransform;
-
-    // float									fFOV;
-    // float									fASPECT;
 
     CRenderDevice()
         : m_pRender(0)
@@ -249,7 +225,6 @@ public:
     void Reset(bool precache = true);
 
     void Initialize(void);
-    void ShutDown(void);
 
     void time_factor(const float& time_factor); //--#SM+#--
     inline const float time_factor() const
@@ -259,12 +234,18 @@ public:
     }
 
 private:
-    // Multi-threading
-    Event syncProcessFrame, syncFrameDone, syncThreadExit; // Secondary thread events
-    std::atomic_bool mt_bMustExit;
     std::chrono::duration<double, std::milli> SecondThreadTasksElapsedTime;
 
 public:
+    ICF bool add_to_seq_parallel(const fastdelegate::FastDelegate<void()>& delegate)
+    {
+        auto I = std::find(seqParallel.begin(), seqParallel.end(), delegate);
+        if (I != seqParallel.end())
+            return false;
+        seqParallel.push_back(delegate);
+        return true;
+    }
+
     ICF void remove_from_seq_parallel(const fastdelegate::FastDelegate<void()>& delegate)
     {
         seqParallel.erase(std::remove(seqParallel.begin(), seqParallel.end(), delegate), seqParallel.end());
@@ -276,9 +257,7 @@ public:
 
 private:
     void message_loop();
-    virtual void _BCL AddSeqFrame(pureFrame* f, bool mt);
-    virtual void _BCL RemoveSeqFrame(pureFrame* f);
-    virtual CStatsPhysics* _BCL StatPhysics() { return Statistic; }
+    void second_thread();
 };
 
 extern ENGINE_API CRenderDevice Device;
@@ -300,4 +279,5 @@ public:
     bool b_registered;
     bool b_need_user_input{};
 };
+
 extern ENGINE_API CLoadScreenRenderer load_screen_renderer;

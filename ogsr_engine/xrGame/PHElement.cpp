@@ -321,7 +321,7 @@ void CPHElement::Activate(const Fmatrix& m0, float dt01, const Fmatrix& m2, bool
     Activate(m0, lvel, avel, disable);
 }
 
-void CPHElement::Activate(bool disable)
+void CPHElement::Activate(bool disable, bool)
 {
     Fvector lvel, avel;
     lvel.set(0.f, 0.f, 0.f);
@@ -367,6 +367,15 @@ void CPHElement::PhDataUpdate(dReal step)
 {
     if (!isActive())
         return;
+
+    if (isFixed())
+    {
+        dBodySetLinearVel(m_body, 0, 0, 0);
+        dBodySetAngularVel(m_body, 0, 0, 0);
+        dBodySetForce(m_body, 0, 0, 0);
+        dBodySetTorque(m_body, 0, 0, 0);
+        return;
+    }
 
         ///////////////skip for disabled elements////////////////////////////////////////////////////////////
         // b_enabled_onstep=!!dBodyIsEnabled(m_body);
@@ -959,7 +968,7 @@ void CPHElement::addInertia(const dMass& M)
 }
 void CPHElement::get_LinearVel(Fvector& velocity)
 {
-    if (!isActive() || !dBodyIsEnabled(m_body))
+    if (!isActive() || (!m_flags.test(flAnimated) && !dBodyIsEnabled(m_body)))
     {
         velocity.set(0, 0, 0);
         return;
@@ -968,7 +977,7 @@ void CPHElement::get_LinearVel(Fvector& velocity)
 }
 void CPHElement::get_AngularVel(Fvector& velocity)
 {
-    if (!isActive() || !dBodyIsEnabled(m_body))
+    if (!isActive() || (!m_flags.test(flAnimated) && !dBodyIsEnabled(m_body)))
     {
         velocity.set(0, 0, 0);
         return;
@@ -1388,6 +1397,10 @@ bool CPHElement::get_ApplyByGravity() { return (!!dBodyGetGravityMode(m_body)); 
 
 void CPHElement::Fix()
 {
+    if (isFixed())
+        return;
+
+    dBodySetNoUpdatePosMode(m_body, 1);
     m_flags.set(flFixed, TRUE);
     FixBody(m_body);
 }
@@ -1395,10 +1408,12 @@ void CPHElement::ReleaseFixed()
 {
     if (!isFixed())
         return;
+    dBodySetNoUpdatePosMode(m_body, 0);
     m_flags.set(flFixed, FALSE);
     if (!isActive())
         return;
     dBodySetMass(m_body, &m_mass);
+    dBodySetGravityMode(m_body, 1);
 }
 void CPHElement::applyGravityAccel(const Fvector& accel)
 {

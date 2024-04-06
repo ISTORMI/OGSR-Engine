@@ -25,6 +25,13 @@ void CLevel::remove_objects()
     m_is_removing_objects = true;
     BOOL b_stored = psDeviceFlags.test(rsDisableObjectsAsCrows);
 
+    u32 m_base, c_base, m_lmaps, c_lmaps;
+    Device.m_pRender->ResourcesGetMemoryUsage(m_base, c_base, m_lmaps, c_lmaps);
+
+    Msg("~ ObjectResources unload...");
+    Msg("~ ObjectResources - base: %d, %d K", c_base, m_base / 1024);
+    Msg("~ ObjectResources - lmap: %d, %d K", c_lmaps, m_lmaps / 1024);
+
     Game().reset_ui();
 
     {
@@ -62,7 +69,12 @@ void CLevel::remove_objects()
     stalker_animation_data_storage().clear();
 
     VERIFY(Render);
-    Render->models_Clear(TRUE /*FALSE*/);
+
+    if (!g_prefetch)
+        Render->models_Clear(TRUE);
+    else
+        Render->models_Clear(FALSE);
+
     Render->clear_static_wallmarks();
 
 #ifdef DEBUG
@@ -84,6 +96,15 @@ void CLevel::remove_objects()
     g_ScriptVars.clear();
 
     shader_exports.set_dof_params(0.f, 0.f, 0.f, 0.f);
+
+    //u32 m_base, c_base, m_lmaps, c_lmaps;
+    Device.m_pRender->ResourcesGetMemoryUsage(m_base, c_base, m_lmaps, c_lmaps);
+
+    Msg("~ ObjectResources unload completed!");
+    Msg("~ ObjectResources - base: %d, %d K", c_base, m_base / 1024);
+    Msg("~ ObjectResources - lmap: %d, %d K", c_lmaps, m_lmaps / 1024);
+
+    ai().script_engine().collect_all_garbage();
 
     m_is_removing_objects = false;
 }
@@ -133,45 +154,29 @@ void CLevel::ClientSend()
     }
 }
 
-u32 CLevel::Objects_net_Save(NET_Packet* _Packet, u32 start, u32 max_object_size)
-{
-    NET_Packet& Packet = *_Packet;
-    u32 position;
-    for (; start < Objects.o_count(); start++)
-    {
-        CObject* _P = Objects.o_get_by_iterator(start);
-        CGameObject* P = smart_cast<CGameObject*>(_P);
-        // Msg( "save:iterating:%d:%s", P->ID(), *P->cName() );
-        if (P && !P->getDestroy() && P->net_SaveRelevant())
-        {
-            Packet.w_u16(u16(P->ID()));
-            Packet.w_chunk_open16(position);
-            // Msg( "save:saving:%d:%s", P->ID(), *P->cName() );
-            P->net_Save(Packet);
-            u32 size = u32(Packet.w_tell() - position) - sizeof(u16);
-            ASSERT_FMT(size < 65536, "Object [%s][%u] exceed network-data limit: size = [%u], Pend = [%u], Pstart = [%u]", P->cName().c_str(), P->ID(), size, Packet.w_tell(),
-                       position);
-            // Msg( "save:saved:%d bytes:%d:%s", size, P->ID(), *P->cName() );
-            Packet.w_chunk_close16(position);
-            if (max_object_size > (NET_PacketSizeLimit - Packet.w_tell()))
-                break;
-        }
-    }
-    return ++start;
-}
+#include "xrServer_Objects.h"
 
 void CLevel::ClientSave()
 {
-    NET_Packet P;
-    u32 start = 0;
-    for (;;)
+    for (u32 i = 0; i < Objects.o_count(); i++)
     {
-        P.w_begin(M_SAVE_PACKET);
-        start = Objects_net_Save(&P, start, max_objects_size_in_save);
-        if (P.B.count > 2)
-            Send(P, net_flags(FALSE));
-        else
-            break;
+        CObject* O = Objects.o_get_by_iterator(i);
+        CGameObject* P = smart_cast<CGameObject*>(O);
+        // Msg( "save:iterating:%d:%s", P->ID(), *P->cName() );
+        if (P && !P->getDestroy() && P->net_SaveRelevant())
+        {
+            NET_Packet Packet;
+
+            P->net_Save(Packet); // вызов save(NET_Packet& output_packet)
+
+            CSE_Abstract* E = Server->ID_to_entity(O->ID());
+
+            if (E)
+            {
+                E->net_Ready = TRUE;
+                E->load(Packet);
+            }
+        }
     }
 }
 
@@ -292,68 +297,6 @@ void CLevel::OnConnectResult(NET_Packet* P)
         m_bConnectResult = false;
 
     m_sConnectResult = ResultStr;
-};
-
-void CLevel::ClearAllObjects()
-{
-    bool ParentFound = true;
-
-    while (ParentFound)
-    {
-        ProcessGameEvents();
-
-        u32 CLObjNum = Level().Objects.o_count();
-        ParentFound = false;
-
-        for (u32 i = 0; i < CLObjNum; i++)
-        {
-            CObject* pObj = Level().Objects.o_get_by_iterator(i);
-            if (!pObj->H_Parent())
-                continue;
-            //-----------------------------------------------------------
-            NET_Packet GEN;
-            GEN.w_begin(M_EVENT);
-            //------------------		---------------------------
-            GEN.w_u32(Level().timeServer());
-            GEN.w_u16(GE_OWNERSHIP_REJECT);
-            GEN.w_u16(pObj->H_Parent()->ID());
-            GEN.w_u16(u16(pObj->ID()));
-            game_events->insert(GEN);
-            if (g_bDebugEvents)
-                ProcessGameEvents();
-            //-------------------------------------------------------------
-            ParentFound = true;
-            //-------------------------------------------------------------
-#ifdef DEBUG
-            Msg("Rejection of %s[%d] from %s[%d]", *(pObj->cNameSect()), pObj->ID(), *(pObj->H_Parent()->cNameSect()), pObj->H_Parent()->ID());
-#endif
-        };
-    };
-
-    u32 CLObjNum = Level().Objects.o_count();
-
-    for (u32 i = 0; i < CLObjNum; i++)
-    {
-        CObject* pObj = Level().Objects.o_get_by_iterator(i);
-        R_ASSERT(pObj->H_Parent() == NULL);
-        //-----------------------------------------------------------
-        NET_Packet GEN;
-        GEN.w_begin(M_EVENT);
-        //---------------------------------------------
-        GEN.w_u32(Level().timeServer());
-        GEN.w_u16(GE_DESTROY);
-        GEN.w_u16(u16(pObj->ID()));
-        game_events->insert(GEN);
-        if (g_bDebugEvents)
-            ProcessGameEvents();
-        //-------------------------------------------------------------
-        ParentFound = true;
-        //-------------------------------------------------------------
-#ifdef DEBUG
-        Msg("Destruction of %s[%d]", *(pObj->cNameSect()), pObj->ID());
-#endif
-    };
-    ProcessGameEvents();
 };
 
 void CLevel::OnConnectRejected() { IPureClient::OnConnectRejected(); };

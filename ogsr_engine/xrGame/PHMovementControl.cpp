@@ -14,6 +14,7 @@
 #include "ElevatorState.h"
 #include "CalculateTriangle.h"
 #include "../Include/xrRender/Kinematics.h"
+#include "../xr_3da/IGame_Persistent.h"
 
 #define GROUND_FRICTION 10.0f
 #define AIR_FRICTION 0.01f
@@ -923,6 +924,13 @@ Fmatrix CPHMovementControl::PHCaptureGetNearestElemTransform(CPhysicsShellHolder
     return m;
 }
 
+IPhysicsElement* CPHMovementControl::IElement() const
+{
+    if (!CharacterExist())
+        return 0;
+    return m_character;
+}
+
 void CPHMovementControl::PHReleaseObject()
 {
     if (m_capture)
@@ -934,9 +942,13 @@ void CPHMovementControl::PHReleaseObject()
 
 void CPHMovementControl::DestroyCharacter()
 {
+    // Remove Grass bender if PHCharacter is not NULL
+    if (m_character->PhysicsRefObject())
+        g_pGamePersistent->GrassBendersRemoveById(m_character->PhysicsRefObject()->ID());
+
     m_character->Destroy();
     xr_delete(m_capture);
-    // xr_delete<CPHSimpleCharacter>(m_character);
+    // xr_delete(m_character);
 }
 
 void CPHMovementControl::DeleteCharacterObject()

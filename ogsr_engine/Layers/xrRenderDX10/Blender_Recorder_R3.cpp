@@ -1,15 +1,10 @@
 #include "stdafx.h"
-#pragma hdrstop
 
 #include "../xrRender/ResourceManager.h"
 #include "../xrRender/blenders/Blender_Recorder.h"
 #include "../xrRender/blenders/Blender.h"
-
 #include "../xrRender/dxRenderDeviceRender.h"
-
 #include "../xrRender/tss.h"
-
-void fix_texture_name(LPSTR fn);
 
 void CBlender_Compile::r_Stencil(BOOL Enable, u32 Func, u32 Mask, u32 WriteMask, u32 Fail, u32 Pass, u32 ZFail)
 {
@@ -131,21 +126,34 @@ u32 CBlender_Compile::r_dx10Sampler(LPCSTR ResourceName)
     }
 
     //	Use D3DTADDRESS_CLAMP,	D3DTEXF_LINEAR,			D3DTEXF_NONE,	D3DTEXF_LINEAR
-    if (0 == xr_strcmp(ResourceName, "smp_rtlinear"))
+    else if (0 == xr_strcmp(ResourceName, "smp_rtlinear"))
     {
         i_dx10Address(stage, D3DTADDRESS_CLAMP);
         i_dx10Filter(stage, D3DTEXF_LINEAR, D3DTEXF_NONE, D3DTEXF_LINEAR);
     }
 
     //	Use	D3DTADDRESS_WRAP,	D3DTEXF_LINEAR,			D3DTEXF_LINEAR,	D3DTEXF_LINEAR
-    if (0 == xr_strcmp(ResourceName, "smp_linear"))
+    else if (0 == xr_strcmp(ResourceName, "smp_linear"))
     {
         i_dx10Address(stage, D3DTADDRESS_WRAP);
         i_dx10Filter(stage, D3DTEXF_LINEAR, D3DTEXF_LINEAR, D3DTEXF_LINEAR);
     }
 
+    #pragma todo("Зачем добавлен ещё один такой же что и smp_linear ???")
+    else if (0 == xr_strcmp(ResourceName, "smp_linear2"))
+    {
+        i_dx10Address(stage, D3DTADDRESS_WRAP);
+        i_dx10Filter(stage, D3DTEXF_LINEAR, D3DTEXF_LINEAR, D3DTEXF_LINEAR);
+    }
+
+    else if (0 == xr_strcmp(ResourceName, "smp_point"))
+    {
+        i_dx10Address(stage, D3DTADDRESS_WRAP);
+        i_dx10Filter(stage, D3DTEXF_POINT, D3DTEXF_POINT, D3DTEXF_POINT);
+    }
+
     //	Use D3DTADDRESS_WRAP,	D3DTEXF_ANISOTROPIC, 	D3DTEXF_LINEAR,	D3DTEXF_ANISOTROPIC
-    if (0 == xr_strcmp(ResourceName, "smp_base"))
+    else if (0 == xr_strcmp(ResourceName, "smp_base"))
     {
         i_dx10Address(stage, D3DTADDRESS_WRAP);
         i_dx10FilterAnizo(stage, TRUE);
@@ -153,14 +161,14 @@ u32 CBlender_Compile::r_dx10Sampler(LPCSTR ResourceName)
     }
 
     //	Use D3DTADDRESS_CLAMP,	D3DTEXF_LINEAR,			D3DTEXF_NONE,	D3DTEXF_LINEAR
-    if (0 == xr_strcmp(ResourceName, "smp_material"))
+    else if (0 == xr_strcmp(ResourceName, "smp_material"))
     {
         i_dx10Address(stage, D3DTADDRESS_CLAMP);
         i_dx10Filter(stage, D3DTEXF_LINEAR, D3DTEXF_NONE, D3DTEXF_LINEAR);
         RS.SetSAMP(stage, D3DSAMP_ADDRESSW, D3DTADDRESS_WRAP);
     }
 
-    if (0 == xr_strcmp(ResourceName, "smp_smap"))
+    else if (0 == xr_strcmp(ResourceName, "smp_smap"))
     {
         i_dx10Address(stage, D3DTADDRESS_CLAMP);
         i_dx10Filter(stage, D3DTEXF_LINEAR, D3DTEXF_NONE, D3DTEXF_LINEAR);
@@ -168,7 +176,7 @@ u32 CBlender_Compile::r_dx10Sampler(LPCSTR ResourceName)
         RS.SetSAMP(stage, XRDX10SAMP_COMPARISONFUNC, D3D_COMPARISON_LESS_EQUAL);
     }
 
-    if (0 == xr_strcmp(ResourceName, "smp_jitter"))
+    else if (0 == xr_strcmp(ResourceName, "smp_jitter"))
     {
         i_dx10Address(stage, D3DTADDRESS_WRAP);
         i_dx10Filter(stage, D3DTEXF_POINT, D3DTEXF_NONE, D3DTEXF_POINT);
@@ -198,10 +206,10 @@ void CBlender_Compile::r_Pass(LPCSTR _vs, LPCSTR _gs, LPCSTR _ps, bool bFog, BOO
     dest.ps = ps;
     dest.vs = vs;
     dest.gs = gs;
-#ifdef USE_DX11
     dest.hs = DEV->_CreateHS("null");
     dest.ds = DEV->_CreateDS("null");
-#endif
+    dest.cs = DEV->_CreateCS("null");
+
     ctable.merge(&ps->constants);
     ctable.merge(&vs->constants);
     ctable.merge(&gs->constants);
@@ -214,7 +222,6 @@ void CBlender_Compile::r_Pass(LPCSTR _vs, LPCSTR _gs, LPCSTR _ps, bool bFog, BOO
     }
 }
 
-#ifdef USE_DX11
 void CBlender_Compile::r_TessPass(LPCSTR vs, LPCSTR hs, LPCSTR ds, LPCSTR gs, LPCSTR ps, bool bFog, BOOL bZtest, BOOL bZwrite, BOOL bABlend, D3DBLEND abSRC, D3DBLEND abDST,
                                   BOOL aTest, u32 aRef)
 {
@@ -233,7 +240,6 @@ void CBlender_Compile::r_ComputePass(LPCSTR cs)
 
     ctable.merge(&dest.cs->constants);
 }
-#endif
 
 void CBlender_Compile::r_End()
 {

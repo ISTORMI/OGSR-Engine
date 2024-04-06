@@ -61,8 +61,6 @@ void dxEnvDescriptorMixerRender::Copy(IEnvDescriptorMixerRender& _in) { *this = 
 
 void dxEnvironmentRender::Copy(IEnvironmentRender& _in) { *this = *(dxEnvironmentRender*)&_in; }
 
-particles_systems::library_interface const& dxEnvironmentRender::particles_systems_library() { return (RImplementation.PSLibrary); }
-
 void dxEnvDescriptorMixerRender::Destroy()
 {
     sky_r_textures.clear();
@@ -161,26 +159,7 @@ void dxEnvironmentRender::OnFrame(CEnvironment& env)
     ID3DBaseTexture* e1 = mixRen.sky_r_textures[1].second->surface_get();
 
     tsky0->surface_set(e0);
-    _RELEASE(e0);
     tsky1->surface_set(e1);
-    _RELEASE(e1);
-
-    // ******************** Environment params (setting)
-#if defined(USE_DX10) || defined(USE_DX11)
-    //	TODO: DX10: Implement environment parameters setting for DX10 (if necessary)
-#else //	USE_DX10
-
-#if RENDER == R_R1
-    Fvector3 fog_color = env.CurrentEnv->fog_color;
-    fog_color.mul(ps_r1_fog_luminance);
-#else //	RENDER==R_R1
-    Fvector3& fog_color = env.CurrentEnv->fog_color;
-#endif //	RENDER==R_R1
-
-    CHK_DX(HW.pDevice->SetRenderState(D3DRS_FOGCOLOR, color_rgba_f(fog_color.x, fog_color.y, fog_color.z, 0)));
-    CHK_DX(HW.pDevice->SetRenderState(D3DRS_FOGSTART, *(u32*)(&env.CurrentEnv->fog_near)));
-    CHK_DX(HW.pDevice->SetRenderState(D3DRS_FOGEND, *(u32*)(&env.CurrentEnv->fog_far)));
-#endif //	USE_DX10
 }
 
 void dxEnvironmentRender::OnLoad()
@@ -222,7 +201,7 @@ void dxEnvironmentRender::RenderSky(CEnvironment& env)
 
     // Fill index buffer
     u16* pib = RCache.Index.Lock(20 * 3, i_offset);
-    CopyMemory(pib, hbox_faces, 20 * 3 * 2);
+    CopyMemory(pib, hbox_faces, sizeof hbox_faces);
     RCache.Index.Unlock(20 * 3);
 
     // Fill vertex buffer
@@ -241,7 +220,7 @@ void dxEnvironmentRender::RenderSky(CEnvironment& env)
 
     // Sun
     ::Render->rmNormal();
-#if RENDER != R_R1
+
     //
     // This hack is done to make sure that the state is set for sure:
     // The state may be not set by RCache if the state is changed using API SetRenderState() function before
@@ -251,9 +230,6 @@ void dxEnvironmentRender::RenderSky(CEnvironment& env)
     RCache.set_Z(TRUE);
     env.eff_LensFlare->Render(TRUE, FALSE, FALSE);
     RCache.set_Z(FALSE);
-#else
-    env.eff_LensFlare->Render(TRUE, FALSE, FALSE);
-#endif
 }
 
 void dxEnvironmentRender::RenderClouds(CEnvironment& env)

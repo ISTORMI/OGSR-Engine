@@ -3,11 +3,9 @@
 //////////////////////////////////////////////////////////////////////
 
 #include "stdafx.h"
-#pragma hdrstop
 
-#ifndef _EDITOR
+
 #include "../../xr_3da/render.h"
-#endif // #ifndef _EDITOR
 
 #include "fbasicvisual.h"
 #include "../../xr_3da/fmesh.h"
@@ -77,7 +75,7 @@ static bool replaceShaders(const char* N, char* fnS, u32 fnS_size)
             return true;
     }
 
-    while (SplitFilename(s))
+    while (xr_string_utils::SplitFilename(s))
     {
         if (replaceShadersLine(N, fnS, fnS_size, s.c_str()))
             return true;
@@ -89,6 +87,8 @@ static bool replaceShaders(const char* N, char* fnS, u32 fnS_size)
 
 void dxRender_Visual::Load(const char* N, IReader* data, u32)
 {
+    IsHudVisual = ::Render->hud_loading;
+
     dbg_name = N;
 
     // header
@@ -121,11 +121,6 @@ void dxRender_Visual::Load(const char* N, IReader* data, u32)
         shader.create(fnS, fnT);
     }
 
-    // desc
-#ifdef _EDITOR
-    if (data->find_chunk(OGF_S_DESC))
-        desc.Load(*data);
-#endif
 }
 
 #define PCOPY(a) a = pFrom->a
@@ -135,4 +130,5 @@ void dxRender_Visual::Copy(dxRender_Visual* pFrom)
     PCOPY(shader);
     PCOPY(vis);
     PCOPY(dbg_name);
+    PCOPY(IsHudVisual);
 }

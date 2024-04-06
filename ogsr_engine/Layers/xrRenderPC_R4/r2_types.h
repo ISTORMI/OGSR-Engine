@@ -1,7 +1,6 @@
 #pragma once
 
 // r3xx code-path (MRT)
-#define r2_RT_depth "$user$depth" // MRT
 #define r2_RT_MSAAdepth "$user$msaadepth" // MRT
 #define r2_RT_P "$user$position" // MRT
 #define r2_RT_N "$user$normal" // MRT
@@ -39,11 +38,7 @@
 #define r2_RT_smap_depth "$user$smap_depth" // ---directional
 #define r2_RT_smap_depth_minmax "$user$smap_depth_minmax"
 
-#define r2_material "$user$material" // ---
-#define r2_ds2_fade "$user$ds2_fade" // ---
-
 #define r2_jitter "$user$jitter_" // --- dither
-#define r2_jitter_mipped "$user$jitter_mipped" // --- dither
 #define r2_sunmask "sunmask"
 
 // SMAA
@@ -78,11 +73,8 @@ const u32 SMAP_adapt_min = 768; // 32	;
 const u32 SMAP_adapt_optimal = 768;
 const u32 SMAP_adapt_max = 1536;
 
-const u32 TEX_material_LdotN = 128; // diffuse,		X, almost linear = small res
-const u32 TEX_material_LdotH = 256; // specular,	Y
-const u32 TEX_material_Count = 4; // Number of materials,	Z
 const u32 TEX_jitter = 64;
-const u32 TEX_jitter_count = 5; // for HBAO
+const u32 TEX_jitter_count = 2; //Simp: реально в шейдерах используется только jitter0 и jitter1. Не понятно зачем вообще столько текстур шума, одной было бы достаточно.
 
 const u32 BLOOM_size_X = 256;
 const u32 BLOOM_size_Y = 256;
@@ -117,10 +109,18 @@ const u32 LUMINANCE_size = 16;
 //	For rain R3 rendering
 #define SE_SUN_RAIN_SMAP 5
 
-extern float ps_r2_gloss_factor;
-IC float u_diffuse2s(float x, float y, float z)
+inline float u_diffuse2s(const float x, const float y, const float z)
 {
-    float v = (x + y + z) / 3.f;
-    return ps_r2_gloss_factor * ((v < 1) ? powf(v, 2.f / 3.f) : v);
+    if (ps_ssfx_gloss_method == 0)
+    {
+        const float v = (x + y + z) / 3.f;
+        return /*ps_r2_gloss_min +*/ ps_r2_gloss_factor * ((v < 1) ? powf(v, 2.f / 3.f) : v);
+    }
+    else
+    {
+        // Remove sun from the equation and clamp value.
+        return ps_ssfx_gloss_minmax.x + clampr(ps_ssfx_gloss_minmax.y - ps_ssfx_gloss_minmax.x, 0.0f, 1.0f) * ps_ssfx_gloss_factor;
+    }
 }
-IC float u_diffuse2s(Fvector3& c) { return u_diffuse2s(c.x, c.y, c.z); }
+
+inline float u_diffuse2s(const Fvector3& c) { return u_diffuse2s(c.x, c.y, c.z); }

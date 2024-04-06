@@ -26,13 +26,12 @@ public:
 
     //	Destroy
     virtual void OnDeviceDestroy(BOOL bKeepTextures);
-    virtual void ValidateHW();
     virtual void DestroyHW();
     virtual void Reset(HWND hWnd, u32& dwWidth, u32& dwHeight, float& fWidth_2, float& fHeight_2);
     //	Init
     virtual void SetupStates();
     virtual void OnDeviceCreate(LPCSTR shName);
-    virtual void Create(HWND hWnd, u32& dwWidth, u32& dwHeight, float& fWidth_2, float& fHeight_2, bool);
+    virtual void Create(HWND hWnd, u32& dwWidth, u32& dwHeight, float& fWidth_2, float& fHeight_2) override;
     virtual void SetupGPU(BOOL bForceGPU_SW, BOOL bForceGPU_NonPure, BOOL bForceGPU_REF);
     //	Overdraw
     virtual void overdrawBegin();
@@ -42,8 +41,6 @@ public:
     virtual void DeferredLoad(BOOL E);
     virtual void ResourcesDeferredUpload();
     virtual void ResourcesGetMemoryUsage(u32& m_base, u32& c_base, u32& m_lmaps, u32& c_lmaps);
-    virtual void ResourcesDestroyNecessaryTextures();
-    virtual void ResourcesStoreNecessaryTextures();
     virtual void ResourcesDumpMemoryUsage();
 
     //	HWSupport
@@ -64,6 +61,7 @@ public:
 
 public:
     CResourceManager* Resources;
+
     ref_shader m_WireShader;
     ref_shader m_SelectionShader;
 

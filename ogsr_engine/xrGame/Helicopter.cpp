@@ -210,7 +210,8 @@ BOOL CHelicopter::net_Spawn(CSE_Abstract* DC)
     m_engineSound.create(*heli->engine_sound, st_Effect, sg_SourceType);
     m_engineSound.play_at_pos(0, XFORM().c, sm_Looped);
 
-    CShootingObject::Light_Create();
+    if (m_bLightShotEnabled)
+        CShootingObject::Light_Create();
 
     setVisible(TRUE);
     setEnabled(TRUE);
@@ -223,6 +224,7 @@ BOOL CHelicopter::net_Spawn(CSE_Abstract* DC)
     m_light_render->set_type(IRender_Light::POINT);
     m_light_render->set_range(m_light_range);
     m_light_render->set_color(m_light_color);
+    m_light_render->set_moveable(true);
 
     if (g_Alive())
         processing_activate();

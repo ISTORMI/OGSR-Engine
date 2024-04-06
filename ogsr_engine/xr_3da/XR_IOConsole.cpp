@@ -47,27 +47,6 @@ char const* const ch_cursor = "_";
 BOOL g_console_show_always = FALSE;
 
 
-//////////////////////////////////////////////////////////////////////////////////////////
-// https://stackoverflow.com/questions/216823/how-to-trim-an-stdstring
-// trim from start (in place)
-static inline void ltrim(std::string& s)
-{
-    s.erase(s.begin(), std::find_if(s.begin(), s.end(), [](unsigned char ch) { return !std::isspace(ch); }));
-}
-
-// trim from end (in place)
-static inline void rtrim(std::string& s)
-{
-    s.erase(std::find_if(s.rbegin(), s.rend(), [](unsigned char ch) { return !std::isspace(ch); }).base(), s.end());
-}
-
-// trim from both ends (in place)
-static inline void trim(std::string& s)
-{
-    rtrim(s);
-    ltrim(s);
-}
-////////////////////////////////////////////////////////////////////////////////////////////
 static inline void split_cmd(const std::string& str, std::string& out1, std::string& out2)
 {
     size_t it{}, start{}, end{};
@@ -87,12 +66,6 @@ static inline void split_cmd(const std::string& str, std::string& out1, std::str
         it++;
     }
 }
-////////////////////////////////////////////////////////////////////////////////////////////
-static inline void strlwr(std::string& data)
-{
-    std::transform(data.begin(), data.end(), data.begin(), [](unsigned char c) { return std::tolower(c); });
-}
-////////////////////////////////////////////////////////////////////////////////////////////
 
 
 text_editor::line_edit_control& CConsole::ec()
@@ -333,30 +306,14 @@ void CConsole::OnRender()
 		pFont2->SetHeightI(0.025f);
 	}
 
-	bool bGame = true;
-	//if ((g_pGameLevel && g_pGameLevel->bReady) ||
-	//	(g_pGamePersistent && g_pGamePersistent->m_pMainMenu && g_pGamePersistent->m_pMainMenu->IsActive()))
-	//{
-	//	bGame = true;
-	//}
+    const bool bGame = true;
 
 	if (bVisible)
 		DrawBackgrounds(bGame);
 
-	float fMaxY;
-	float dwMaxY = (float)Device.dwHeight;
+	float fMaxY{0.0f};
 
-	if (bGame)
-	{
-		fMaxY = 0.0f;
-		dwMaxY /= 2;
-	}
-	else
-	{
-		fMaxY = 1.0f;
-	}
-
-	float ypos = fMaxY - lineDistance * 1.1f;
+	float ypos = fMaxY - LDIST; // тут нужно всегда вычитать оригинальную высоту без учета интервала
 	float scr_x = 1.0f / Device.fWidth_2;
 
 	//---------------------------------------------------------------------------------
@@ -367,6 +324,7 @@ void CConsole::OnRender()
 	if (bVisible)
     {
         LPCSTR s_cursor = ec().str_before_cursor();
+
         LPCSTR s_b_mark = ec().str_before_mark();
         LPCSTR s_mark = ec().str_mark();
         LPCSTR s_mark_a = ec().str_after_mark();
@@ -374,6 +332,7 @@ void CConsole::OnRender()
         // strncpy_s( buf1, cur_pos, editor, MAX_LEN );
         float str_length = ioc_d + pFont->SizeOf_(s_cursor);
         float out_pos = 0.0f;
+
         if (str_length > scr_width)
         {
             out_pos -= (str_length - scr_width);
@@ -384,7 +343,7 @@ void CConsole::OnRender()
         pFont->OutI(-1.0f + out_pos * scr_x, ypos, "%s", ioc_prompt);
         out_pos += ioc_d;
 
-        if (!m_disable_tips && m_tips.size())
+        if (!m_disable_tips && !m_tips.empty())
         {
             pFont->SetColor(tips_font_color);
 
@@ -397,11 +356,15 @@ void CConsole::OnRender()
             case 3: shift_x = scr_x * str_length; break;
             }
 
+			float start = fMaxY;
+
+			start = start - (1.f - pFont->GetInterval().y) * lineDistance; // какая то магия что б первая строка подсказок не прыгала при измении интервала
+
             vecTipsEx::iterator itb = m_tips.begin() + m_start_tip;
             vecTipsEx::iterator ite = m_tips.end();
             for (u32 i = 0; itb != ite; ++itb, ++i) // tips
             {
-                pFont->OutI(-1.0f + shift_x, fMaxY + i * lineDistance, "%s", (*itb).text.c_str());
+                pFont->OutI(-1.0f + shift_x, start + i * lineDistance, "%s", (*itb).text.c_str());
                 if (i >= VIEW_TIPS_COUNT - 1)
                 {
                     break; // for
@@ -413,13 +376,20 @@ void CConsole::OnRender()
         pFont->SetColor(cmd_font_color);
         pFont2->SetColor(cmd_font_color);
 
-        pFont->OutI(-1.0f + out_pos * scr_x, ypos, "%s", s_b_mark);
-        out_pos += pFont->SizeOf_(s_b_mark);
-        pFont2->OutI(-1.0f + out_pos * scr_x, ypos, "%s", s_mark);
-        out_pos += pFont2->SizeOf_(s_mark);
-        pFont->OutI(-1.0f + out_pos * scr_x, ypos, "%s", s_mark_a);
+		// из за того что тут строка по факту состоит из 3х, и из за того что ширина строк округляется, при рендере все плянет
+		// переделал тут на символьный вывод. в таком случае оно получше все выглядит
 
-        // pFont2->OutI( -1.0f + ioc_d * scr_x, ypos, "%s", editor=all );
+		auto draw_string = [&](CGameFont* f, LPCSTR str) {
+            for (size_t c = 0; c < strlen(str); c++)
+            {
+                f->OutI(-1.0f + out_pos * scr_x, ypos, "%c", str[c]);
+                out_pos += f->SizeOf_(str[c]);
+            }
+        };
+
+		draw_string(pFont, s_b_mark);
+        draw_string(pFont2, s_mark);
+        draw_string(pFont, s_mark_a);
 
         if (ec().cursor_view())
         {
@@ -455,7 +425,7 @@ void CConsole::OnRender()
 	itoa(log_line, q, 10);
 	u32 qn = xr_strlen(q);
 	pFont->SetColor(total_font_color);
-	pFont->OutI(0.95f - 0.03f * qn, fMaxY - 2.0f * lineDistance, "[%d]", log_line);
+    pFont->OutI(0.95f - 0.03f * qn, fMaxY - 2.0f * (LDIST), "[%d]", log_line + 1);
 
 	pFont->OnRender();
 	pFont2->OnRender();
@@ -474,7 +444,7 @@ void CConsole::DrawBackgrounds(bool bGame)
 
 	DrawRect(r, back_color);
 
-	if (m_tips.size() == 0 || m_disable_tips)
+	if (m_tips.empty() || m_disable_tips)
 	{
 		UIRender->FlushPrimitive();
 		return;
@@ -500,7 +470,7 @@ void CConsole::DrawBackgrounds(bool bGame)
 
 	float font_h = pFont->CurrentHeight_();
     float tips_h = std::min(m_tips.size(), (size_t)VIEW_TIPS_COUNT) * font_h;
-	tips_h += (m_tips.size() > 0) ? 5.0f : 0.0f;
+	//tips_h += (!m_tips.empty()) ? 5.0f : 0.0f; // убрал, хз зачем там 5 пикслелей снизу добовлялось. не красиво )
 
 	Frect pr, sr;
 	pr.x1 = ioc_w + cur_cmd_w;
@@ -510,6 +480,8 @@ void CConsole::DrawBackgrounds(bool bGame)
 	pr.y1 *= float(Device.dwHeight) / UI_BASE_HEIGHT;
 
 	pr.y2 = pr.y1 + tips_h;
+
+	DrawRect(pr, tips_back_color);
 
 	float select_y = 0.0f;
 	float select_h = 0.0f;
@@ -528,7 +500,6 @@ void CConsole::DrawBackgrounds(bool bGame)
 	sr.x2 = pr.x2;
 	sr.y2 = sr.y1 + select_h;
 
-	DrawRect(pr, tips_back_color);
 	DrawRect(sr, tips_select_color);
 
 	// --------------------------- highlight words --------------------
@@ -620,7 +591,7 @@ void CConsole::ExecuteCommand(LPCSTR cmd_str, bool record_cmd, bool allow_disabl
 {
     std::string edt{cmd_str};
 
-	trim(edt);
+	xr_string_utils::trim(edt);
 
 	if (edt.empty())
 		return;
@@ -655,7 +626,7 @@ void CConsole::ExecuteCommand(LPCSTR cmd_str, bool record_cmd, bool allow_disabl
 		{
 			if (cc->bLowerCaseArgs)
 			{
-				strlwr(last);
+                xr_string_utils::strlwr(last);
 			}
 			if (last.empty())
 			{

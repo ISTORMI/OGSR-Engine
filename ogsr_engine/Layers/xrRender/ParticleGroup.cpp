@@ -1,11 +1,9 @@
 #include "stdafx.h"
-#pragma hdrstop
+
 
 #include "../../xrParticles/psystem.h"
 
-#ifndef _EDITOR
 #include "../../COMMON_AI/smart_cast.h"
-#endif
 
 #include "ParticleGroup.h"
 #include "PSLibrary.h"
@@ -26,21 +24,6 @@ CPGDef::~CPGDef()
         xr_delete(*it);
     m_Effects.clear();
 }
-
-void CPGDef::SetName(LPCSTR name) { m_Name = name; }
-
-#ifdef _EDITOR
-void CPGDef::Clone(CPGDef* source)
-{
-    m_Name = "<invalid_name>";
-    m_Flags = source->m_Flags;
-    m_fTimeLimit = source->m_fTimeLimit;
-
-    m_Effects.resize(source->m_Effects.size(), 0);
-    for (EffectIt d_it = m_Effects.begin(), s_it = source->m_Effects.begin(); s_it != source->m_Effects.end(); s_it++, d_it++)
-        *d_it = xr_new<SEffect>(**s_it);
-}
-#endif
 
 //------------------------------------------------------------------------------
 // I/O part
@@ -94,6 +77,8 @@ BOOL CPGDef::Load2(CInifile& ini)
 
     m_Effects.resize(ini.r_u32("_group", "effects_count"));
 
+    m_fTimeLimit = ini.r_float("_group", "timelimit");
+
     u32 counter = 0;
     string256 buff;
     for (EffectIt it = m_Effects.begin(); it != m_Effects.end(); ++it, ++counter)
@@ -111,7 +96,7 @@ BOOL CPGDef::Load2(CInifile& ini)
         (*it)->m_Time1 = ini.r_float(buff, "time1");
         (*it)->m_Flags.assign(ini.r_u32(buff, "flags"));
     }
-    m_fTimeLimit = ini.r_float("_group", "timelimit");
+
     return TRUE;
 }
 
@@ -154,6 +139,8 @@ void CPGDef::Save2(CInifile& ini)
 
     ini.w_u32("_group", "effects_count", m_Effects.size());
 
+    ini.w_float("_group", "timelimit", m_fTimeLimit);
+
     u32 counter = 0;
     string256 buff;
     for (EffectIt it = m_Effects.begin(); it != m_Effects.end(); ++it, ++counter)
@@ -168,8 +155,6 @@ void CPGDef::Save2(CInifile& ini)
         ini.w_float(buff, "time1", (*it)->m_Time1);
         ini.w_u32(buff, "flags", (*it)->m_Flags.get());
     }
-
-    ini.w_float("_group", "timelimit", m_fTimeLimit);
 }
 //------------------------------------------------------------------------------
 // Particle Group item
@@ -252,11 +237,7 @@ void CParticleGroup::SItem::StartFreeChild(CParticleEffect* emitter, LPCSTR nm, 
     }
     else
     {
-#ifdef _EDITOR
-        Msg("!Can't use looped effect '%s' as 'On Birth' child for group.", nm);
-#else
-        Debug.fatal(DEBUG_INFO, "Can't use looped effect '%s' as 'On Birth' child for group.", nm);
-#endif
+        FATAL("Can't use looped effect '%s' as 'On Birth' child for group.", nm);
     }
 }
 void CParticleGroup::SItem::Play()

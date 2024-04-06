@@ -12,16 +12,7 @@ const float PS::fDT_STEP = float(uDT_STEP) / 1000.f;
 static void ApplyTexgen(const Fmatrix& mVP)
 {
     Fmatrix mTexgen;
-
-#if defined(USE_DX10) || defined(USE_DX11)
     Fmatrix mTexelAdjust = {0.5f, 0.0f, 0.0f, 0.0f, 0.0f, -0.5f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.5f, 0.5f, 0.0f, 1.0f};
-#else //	USE_DX10
-    float _w = float(RDEVICE.dwWidth);
-    float _h = float(RDEVICE.dwHeight);
-    float o_w = (.5f / _w);
-    float o_h = (.5f / _h);
-    Fmatrix mTexelAdjust = {0.5f, 0.0f, 0.0f, 0.0f, 0.0f, -0.5f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.5f + o_w, 0.5f + o_h, 0.0f, 1.0f};
-#endif //	USE_DX10
 
     mTexgen.mul(mTexelAdjust, mVP);
     RCache.set_c("mVPTexgen", mTexgen);
@@ -408,7 +399,7 @@ void ParticleRenderStream(CParticleEffect& pPE, PAPI::Particle* particles, FVF::
     float sina = 0.0f, cosa = 0.0f;
     // Xottab_DUTY: changed angle to be float instead of DWORD
     // But it must be 0xFFFFFFFF or otherwise some particles won't play
-    float angle = 0xFFFFFFFF;
+    float angle = float(0xFFFFFFFF); // XXX: check if we can replace with flt_max
 
     for (u32 i = p_from; i < p_to; i++)
     {
@@ -550,7 +541,7 @@ void CParticleEffect::Render(float)
                 Fmatrix FTold = Device.mFullTransform;
                 if (GetHudMode())
                 {
-                    RDEVICE.mProject.build_projection(deg2rad(psHUD_FOV < 1.f ? psHUD_FOV * Device.fFOV : psHUD_FOV), Device.fASPECT, HUD_VIEWPORT_NEAR,
+                    RDEVICE.mProject.build_projection(deg2rad(psHUD_FOV <= 1.f ? psHUD_FOV * Device.fFOV : psHUD_FOV), Device.fASPECT, HUD_VIEWPORT_NEAR,
                                                       g_pGamePersistent->Environment().CurrentEnv->far_plane);
 
                     Device.mFullTransform.mul(Device.mProject, Device.mView);

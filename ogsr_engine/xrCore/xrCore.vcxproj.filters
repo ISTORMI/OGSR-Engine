@@ -309,9 +309,6 @@
     <ClInclude Include="intrusive_ptr.h">
       <Filter>intrusive_ptr</Filter>
     </ClInclude>
-    <ClInclude Include="intrusive_ptr_inline.h">
-      <Filter>intrusive_ptr</Filter>
-    </ClInclude>
     <ClInclude Include="rt_compressor.h">
       <Filter>Compression\rt</Filter>
     </ClInclude>
@@ -343,7 +340,7 @@
     <ClInclude Include="Utils\FastDelegate.hpp">
       <Filter>Utils</Filter>
     </ClInclude>
-    <ClInclude Include="Utils\thread_pool.hpp">
+    <ClInclude Include="Utils\task_thread_pool.hpp">
       <Filter>Utils</Filter>
     </ClInclude>
     <ClInclude Include="Utils\imdexlib\fast_dynamic_cast.hpp">
@@ -375,6 +372,12 @@
     </ClInclude>
     <ClInclude Include="trivial_encryptor.h">
       <Filter>FS</Filter>
+    </ClInclude>
+    <ClInclude Include="crc32.h">
+      <Filter>shared memory/string library</Filter>
+    </ClInclude>
+    <ClInclude Include="xalloc.h">
+      <Filter>Memory manager</Filter>
     </ClInclude>
   </ItemGroup>
 </Project>

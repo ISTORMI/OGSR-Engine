@@ -71,33 +71,20 @@ void CRenderTarget::PhaseRainDrops()
         }
     };
 
-    static bool actor_in_hideout = true;
-    static u32 last_ray_pick_time = Device.dwTimeGlobal;
-    if (Device.dwTimeGlobal > (last_ray_pick_time + 1000))
-    { //Апдейт рейтрейса - раз в секунду. Чаще апдейтить нет смысла.
-        last_ray_pick_time = Device.dwTimeGlobal;
-
-        collide::rq_result RQ;
-        actor_in_hideout = !!g_pGameLevel->ObjectSpace.RayPick(Device.vCameraPosition, Fvector().set(0, 1, 0), 50.f, collide::rqtBoth, RQ, g_pGameLevel->CurrentViewEntity());
-    }
+    const bool actor_in_hideout = g_pGamePersistent->IsActorInHideout();
 
     update_rain_drops_factor(!actor_in_hideout);
 
     if (fis_zero(rain_drops_factor))
         return;
 
-        // Msg("##[%s] rain_drops_factor: [%f], rain_density: [%f]", __FUNCTION__, rain_drops_factor, g_pGamePersistent->pEnvironment->CurrentEnv->rain_density);
+    // Msg("##[%s] rain_drops_factor: [%f], rain_density: [%f]", __FUNCTION__, rain_drops_factor, g_pGamePersistent->pEnvironment->CurrentEnv->rain_density);
 
-#if defined(USE_DX10) || defined(USE_DX11)
     ref_rt& dest_rt = RImplementation.o.dx10_msaa ? rt_Generic : rt_Color;
-#else
-    ref_rt& dest_rt = rt_Generic_0;
-#endif
+
     Fvector4 params{rain_drops_factor, ps_r2_rain_drops_intensity, ps_r2_rain_drops_speed, 0.0f};
     string_unordered_map<const char*, Fvector4*> consts{{"rain_drops_params", &params}};
     RenderScreenQuad(Device.dwWidth, Device.dwHeight, dest_rt, s_rain_drops->E[0], &consts);
 
-#if defined(USE_DX10) || defined(USE_DX11)
     HW.pContext->CopyResource(rt_Generic_0->pTexture->surface_get(), dest_rt->pTexture->surface_get());
-#endif
 }

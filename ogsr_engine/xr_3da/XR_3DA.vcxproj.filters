@@ -103,6 +103,9 @@
     <Filter Include="Discord">
       <UniqueIdentifier>{43bfe79c-eeb5-4f94-934d-a536c732336c}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Interfaces\Physics">
+      <UniqueIdentifier>{9b31ebb8-00c7-4243-a366-4ea137bf7023}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="stdafx.h">
@@ -255,9 +258,6 @@
     <ClInclude Include="tntQAVI.h">
       <Filter>Interfaces\Render\Execution &amp; 3D\Shaders\Textures</Filter>
     </ClInclude>
-    <ClInclude Include="xrImage_Resampler.h">
-      <Filter>Interfaces\Render\Execution &amp; 3D\Shaders\Textures</Filter>
-    </ClInclude>
     <ClInclude Include="xrTheora_Stream.h">
       <Filter>Interfaces\Render\Execution &amp; 3D\Shaders\Textures</Filter>
     </ClInclude>
@@ -336,6 +336,12 @@
     </ClInclude>
     <ClInclude Include="os_clipboard.h">
       <Filter>Engine\Console</Filter>
+    </ClInclude>
+    <ClInclude Include="splash.h">
+      <Filter>General</Filter>
+    </ClInclude>
+    <ClInclude Include="IPhysicsDefinitions.h">
+      <Filter>Interfaces\Physics</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
@@ -501,9 +507,6 @@
     <ClCompile Include="tntQAVI.cpp">
       <Filter>Interfaces\Render\Execution &amp; 3D\Shaders\Textures</Filter>
     </ClCompile>
-    <ClCompile Include="xrImage_Resampler.cpp">
-      <Filter>Interfaces\Render\Execution &amp; 3D\Shaders\Textures</Filter>
-    </ClCompile>
     <ClCompile Include="xrTheora_Stream.cpp">
       <Filter>Interfaces\Render\Execution &amp; 3D\Shaders\Textures</Filter>
     </ClCompile>
@@ -526,9 +529,6 @@
       <Filter>Engine\Core</Filter>
     </ClCompile>
     <ClCompile Include="EventAPI.cpp">
-      <Filter>Engine\Core</Filter>
-    </ClCompile>
-    <ClCompile Include="mailSlot.cpp">
       <Filter>Engine\Core</Filter>
     </ClCompile>
     <ClCompile Include="perlin.cpp">
@@ -568,6 +568,9 @@
     <ClCompile Include="XR_IOConsole_get.cpp">
       <Filter>Engine\Console</Filter>
     </ClCompile>
+    <ClCompile Include="splash.cpp">
+      <Filter>General</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="resource.rc">
@@ -578,12 +581,14 @@
     <None Include="stalker.ico">
       <Filter>General\Resources</Filter>
     </None>
-    <None Include="ui_splash3.bmp">
-      <Filter>General\Resources</Filter>
-    </None>
     <None Include="ClientServer.txt" />
     <None Include="Effects description.txt" />
     <None Include="features.txt" />
     <None Include="TODO.txt" />
+  </ItemGroup>
+  <ItemGroup>
+    <Image Include="ui_splash3.png">
+      <Filter>General\Resources</Filter>
+    </Image>
   </ItemGroup>
 </Project>

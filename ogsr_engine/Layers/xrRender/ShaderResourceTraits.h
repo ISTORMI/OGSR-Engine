@@ -1,7 +1,5 @@
 #pragma once
 
-#ifdef USE_DX11
-
 #include "ResourceManager.h"
 
 template <typename T>
@@ -114,12 +112,21 @@ inline T* CResourceManager::CreateShader(const char* name)
         IReader* file = FS.r_open(cname);
         R_ASSERT2(file, cname);
 
+        file->skip_bom(cname);
+
         // Select target
         LPCSTR c_target = ShaderTypeTraits<T>::GetCompilationTarget();
         LPCSTR c_entry = "main";
 
+        DWORD Flags{D3DCOMPILE_PACK_MATRIX_ROW_MAJOR};
+        if (strstr(Core.Params, "-shadersdbg"))
+        {
+            Flags |= D3DCOMPILE_DEBUG;
+            Flags |= D3DCOMPILE_SKIP_OPTIMIZATION;
+        }
+
         // Compile
-        HRESULT const _hr = ::Render->shader_compile(name, (DWORD const*)file->pointer(), file->length(), c_entry, c_target, D3D10_SHADER_PACK_MATRIX_ROW_MAJOR, (void*&)sh);
+        HRESULT const _hr = ::Render->shader_compile(name, (DWORD const*)file->pointer(), file->elapsed(), c_entry, c_target, Flags, (void*&)sh);
 
         FS.r_close(file);
 
@@ -147,5 +154,3 @@ inline void CResourceManager::DestroyShader(const T* sh)
     }
     Msg("! ERROR: Failed to find compiled geometry shader '%s'", *sh->cName);
 }
-
-#endif

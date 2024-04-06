@@ -34,7 +34,7 @@ char* xr_strdup(const char* string)
 {
     VERIFY(string);
     size_t len = strlen(string) + 1;
-    char* memory = (char*)Memory.mem_alloc(len);
+    char* memory = (char*)xr_malloc(len);
     CopyMemory(memory, string, len);
     return memory;
 }
@@ -48,4 +48,14 @@ std::string StringToUTF8(const char* in)
     std::wstring wstr(len, L'\0');
     std::use_facet<std::ctype<wchar_t>>(locale).widen(in, in + len, wstr.data());
     return wcvt{}.to_bytes(wstr.data(), wstr.data() + wstr.size());
+}
+
+std::string StringFromUTF8(const char* in)
+{
+    using wcvt = std::wstring_convert<std::codecvt_utf8<wchar_t>, wchar_t>;
+    const std::wstring wstr = wcvt{}.from_bytes(in);
+    static const std::locale locale{""};
+    std::string result(wstr.size(), '\0');
+    std::use_facet<std::ctype<wchar_t>>(locale).narrow(wstr.data(), wstr.data() + wstr.size(), '?', result.data());
+    return result;
 }

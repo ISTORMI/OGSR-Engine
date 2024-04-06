@@ -9,33 +9,32 @@ struct XRCORE_API str_value
     u32 dwReference;
     u32 dwLength;
     u32 dwCRC;
+    str_value* next;
     char value[];
 };
-struct XRCORE_API str_value_cmp
-{ // less
-    IC bool operator()(const str_value* A, const str_value* B) const { return A->dwCRC < B->dwCRC; };
-};
+
 #pragma warning(default : 4200)
+
+struct str_container_impl;
 
 //////////////////////////////////////////////////////////////////////////
 class XRCORE_API str_container
 {
-private:
-    typedef xr_multiset<str_value*, str_value_cmp> cdb;
-    xrCriticalSection cs;
-    cdb container;
-
 public:
-    str_value* dock(const char* value);
-    void clean();
-    void dump();
-    void verify();
-    u32 stat_economy();
-#ifdef PROFILE_CRITICAL_SECTIONS
-    str_container() : cs(MUTEX_PROFILE_ID(str_container)) {}
-#endif // PROFILE_CRITICAL_SECTIONS
+    str_container();
     ~str_container();
+
+    str_value* dock(pcstr value) const;
+    void clean() const;
+    void dump() const;
+    void verify() const;
+
+    [[nodiscard]] size_t stat_economy() const;
+
+private:
+    str_container_impl* impl;
 };
+
 XRCORE_API extern str_container* g_pStringContainer;
 
 //////////////////////////////////////////////////////////////////////////
@@ -115,16 +114,18 @@ public:
     bool operator!() const { return !p_; }
     const char* operator*() const { return p_ ? p_->value : nullptr; }
 
+    // Чтобы можно было легко кастить в std::string_view как и все остальные строки
+    operator std::string_view() const { return std::string_view{p_ ? p_->value : ""}; }
+
     const char* c_str() const { return p_ ? p_->value : nullptr; }
 
-    // misc func
-    u32 size() const
-    {
-        if (0 == p_)
-            return 0;
-        else
-            return p_->dwLength;
-    }
+    //Используется в погодном редакторе.
+    const char* data() const { return p_ ? p_->value : ""; }
+
+    u32 size() const { return p_ ? p_->dwLength : 0; }
+
+    bool empty() const { return size() == 0; }
+
     void swap(shared_str& rhs)
     {
         str_value* tmp = p_;
@@ -148,8 +149,14 @@ public:
     }
 };
 
+// string(char)
+using xr_string = std::basic_string<char, std::char_traits<char>, xr_allocator<char>>;
+
+DEFINE_VECTOR(xr_string, SStringVec, SStringVecIt);
+
 // externally visible standart functionality
 IC void swap(shared_str& lhs, shared_str& rhs) { lhs.swap(rhs); }
+
 IC u32 xr_strlen(shared_str& a) { return a.size(); }
 IC int xr_strcmp(const shared_str& a, const char* b) { return xr_strcmp(*a, b); }
 IC int xr_strcmp(const char* a, const shared_str& b) { return xr_strcmp(a, *b); }
@@ -160,6 +167,7 @@ IC int xr_strcmp(const shared_str& a, const shared_str& b)
     else
         return xr_strcmp(*a, *b);
 }
+
 IC void xr_strlwr(xr_string& src)
 {
     for (xr_string::iterator it = src.begin(); it != src.end(); it++)
@@ -178,27 +186,71 @@ IC void xr_strlwr(shared_str& src)
 
 #pragma pack(pop)
 
-struct string_hash
+struct transparent_string_hash
 {
     using is_transparent = void; // https://www.cppstories.com/2021/heterogeneous-access-cpp20/
     using hash_type = std::hash<std::string_view>;
-    [[nodiscard]] decltype(auto) operator()(std::string_view txt) const noexcept { return hash_type{}(txt); }
-    [[nodiscard]] decltype(auto) operator()(const std::string& txt) const noexcept { return hash_type{}(txt); }
-    [[nodiscard]] decltype(auto) operator()(const char* txt) const noexcept { return hash_type{}(txt); }
-    [[nodiscard]] decltype(auto) operator()(const shared_str& txt) const noexcept { return hash_type{}(txt.c_str() ? txt.c_str() : ""); }
+    [[nodiscard]] size_t operator()(const std::string_view txt) const noexcept { return hash_type{}(txt); }
+    [[nodiscard]] size_t operator()(const std::string& txt) const noexcept { return hash_type{}(txt); }
+    [[nodiscard]] size_t operator()(const char* txt) const noexcept { return hash_type{}(txt); }
+    [[nodiscard]] size_t operator()(const shared_str& txt) const noexcept { return hash_type{}(txt); }
 };
 
-template <typename Key, typename Value, class _Alloc = std::allocator<std::pair<const Key, Value>>>
-using string_unordered_map = std::unordered_map<Key, Value, string_hash, std::equal_to<>, _Alloc>;
+struct transparent_string_equal
+{
+    using is_transparent = void;
+    [[nodiscard]] bool operator()(const std::string_view lhs, const std::string_view rhs) const { return lhs == rhs; }
+    [[nodiscard]] bool operator()(const shared_str& lhs, const shared_str& rhs) const { return lhs == rhs; }
+    [[nodiscard]] bool operator()(const char* lhs, const char* rhs) const { return !strcmp(lhs, rhs); }
+};
 
+template <typename Key, typename Value, class _Alloc = xr_allocator<std::pair<const Key, Value>>>
+using string_unordered_map = std::unordered_map<Key, Value, transparent_string_hash, transparent_string_equal, _Alloc>;
 
-inline bool SplitFilename(std::string& str)
+namespace xr_string_utils
+{
+
+template <typename T>
+inline bool SplitFilename(T& str)
 {
     size_t found = str.find_last_of("/\\");
-    if (found != std::string::npos)
+    if (found != T::npos)
     {
         str.erase(found);
         return true;
     }
     return false;
 }
+
+//////////////////////////////////////////////////////////////////////////////////////////
+// https://stackoverflow.com/questions/216823/how-to-trim-an-stdstring
+// trim from start (in place)
+template <typename T>
+inline void ltrim(T& s)
+{
+    s.erase(s.begin(), std::find_if(s.begin(), s.end(), [](unsigned char ch) { return !std::isspace(ch); }));
+}
+
+// trim from end (in place)
+template <typename T>
+inline void rtrim(T& s)
+{
+    s.erase(std::find_if(s.rbegin(), s.rend(), [](unsigned char ch) { return !std::isspace(ch); }).base(), s.end());
+}
+
+// trim from both ends (in place)
+template <typename T>
+inline void trim(T& s)
+{
+    rtrim(s);
+    ltrim(s);
+}
+////////////////////////////////////////////////////////////////////////////////////////////
+
+template <typename T>
+inline void strlwr(T& data)
+{
+    std::transform(data.begin(), data.end(), data.begin(), [](unsigned char c) { return std::tolower(c); });
+}
+
+} // namespace xr_string_utils

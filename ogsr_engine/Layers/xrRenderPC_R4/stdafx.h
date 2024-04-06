@@ -14,8 +14,8 @@
 #pragma warning(4 : 4244)
 #pragma warning(disable : 4237)
 
-#include <D3D11.h>
-#include <d3dx/D3Dx11core.h>
+#include <DirectXMath.h>
+#include <d3d11_1.h>
 #include <D3DCompiler.h>
 
 #include "../xrRender/xrD3DDefs.h"
@@ -27,6 +27,7 @@
 #define R_R3 3
 #define R_R4 4
 #define RENDER R_R4
+#define USE_DX11 //оставлено на случай пояаления кода откуда-то в котором будут нужны эти макросы.
 
 #include "../../xrParticles/psystem.h"
 
@@ -48,15 +49,7 @@
 
 IC void jitter(CBlender_Compile& C)
 {
-    //	C.r_Sampler	("jitter0",	JITTER(0), true, D3DTADDRESS_WRAP, D3DTEXF_POINT, D3DTEXF_NONE, D3DTEXF_POINT);
-    //	C.r_Sampler	("jitter1",	JITTER(1), true, D3DTADDRESS_WRAP, D3DTEXF_POINT, D3DTEXF_NONE, D3DTEXF_POINT);
-    //	C.r_Sampler	("jitter2",	JITTER(2), true, D3DTADDRESS_WRAP, D3DTEXF_POINT, D3DTEXF_NONE, D3DTEXF_POINT);
-    //	C.r_Sampler	("jitter3",	JITTER(3), true, D3DTADDRESS_WRAP, D3DTEXF_POINT, D3DTEXF_NONE, D3DTEXF_POINT);
     C.r_dx10Texture("jitter0", JITTER(0));
     C.r_dx10Texture("jitter1", JITTER(1));
-    C.r_dx10Texture("jitter2", JITTER(2));
-    C.r_dx10Texture("jitter3", JITTER(3));
-    C.r_dx10Texture("jitter4", JITTER(4));
-    C.r_dx10Texture("jitterMipped", r2_jitter_mipped);
     C.r_dx10Sampler("smp_jitter");
 }

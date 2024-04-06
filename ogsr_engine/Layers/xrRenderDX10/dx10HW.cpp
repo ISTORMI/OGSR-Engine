@@ -2,11 +2,7 @@
 //////////////////////////////////////////////////////////////////////
 
 #include "stdafx.h"
-#pragma hdrstop
 
-#pragma warning(disable : 4995)
-#include <d3dx/d3dx9.h>
-#pragma warning(default : 4995)
 #include "../xrRender/HW.h"
 #include "../../xr_3da/XR_IOConsole.h"
 #include "../../xr_3da/xr_input.h"
@@ -15,22 +11,17 @@
 #include "StateManager\dx10SamplerStateCache.h"
 #include "StateManager\dx10StateCache.h"
 
-#ifndef _EDITOR
+#include "imgui.h"
+#include "imgui_impl_dx11.h"
+
+#include <dxgi1_6.h>
+
 void fill_vid_mode_list(CHW* _hw);
 void free_vid_mode_list();
 
-void fill_render_mode_list();
-void free_render_mode_list();
-#else
-void fill_vid_mode_list(CHW* _hw) {}
-void free_vid_mode_list() {}
-void fill_render_mode_list() {}
-void free_render_mode_list() {}
-#endif
-
 CHW HW;
 
-CHW::CHW() : m_move_window(true)
+CHW::CHW()
 {
     Device.seqAppActivate.Add(this);
     Device.seqAppDeactivate.Add(this);
@@ -51,18 +42,48 @@ CHW::~CHW()
 //////////////////////////////////////////////////////////////////////
 void CHW::CreateD3D()
 {
-#ifdef USE_DX11
     // Минимально поддерживаемая версия Windows => Windows Vista SP2 или Windows 7.
-    R_CHK(CreateDXGIFactory1(__uuidof(IDXGIFactory1), (void**)(&pFactory)));
-    pFactory->EnumAdapters1(0, &m_pAdapter);
-#else
-    R_CHK(CreateDXGIFactory(__uuidof(IDXGIFactory), (void**)(&pFactory)));
-    pFactory->EnumAdapters(0, &m_pAdapter);
-#endif
+    R_CHK(CreateDXGIFactory1(IID_PPV_ARGS(&pFactory)));
+
+    UINT i = 0;
+    while (pFactory->EnumAdapters1(i, &m_pAdapter) != DXGI_ERROR_NOT_FOUND)
+    {
+        DXGI_ADAPTER_DESC desc{};
+        m_pAdapter->GetDesc(&desc);
+
+        Msg("* Avail GPU [vendor:%X]-[device:%X]: %S", desc.VendorId, desc.DeviceId, desc.Description);
+
+        _RELEASE(m_pAdapter);
+        ++i;
+    }
+
+    // In the Windows 10 April 2018 Update, there is now a new IDXGIFactory6 interface that supports
+    // a new EnumAdapterByGpuPreference method which lets you enumerate adapters by 'max performance' or 'minimum power'
+    IDXGIFactory6* pFactory6 = nullptr;
+    if (SUCCEEDED(CreateDXGIFactory1(IID_PPV_ARGS(&pFactory6))))
+    {
+        pFactory6->EnumAdapterByGpuPreference(
+            0, DXGI_GPU_PREFERENCE_HIGH_PERFORMANCE,IID_PPV_ARGS(&m_pAdapter));
+
+        Msg(" !CHW::CreateD3D() use DXGI_GPU_PREFERENCE_HIGH_PERFORMANCE");
+
+        _RELEASE(pFactory6);
+    }
+    else
+    {
+        Msg(" !CHW::CreateD3D() use EnumAdapters1(0)");
+
+        pFactory->EnumAdapters1(0, &m_pAdapter);
+    }
+
+    m_pAdapter->QueryInterface(&m_pAdapter3);
 }
 
 void CHW::DestroyD3D()
 {
+    _SHOW_REF("refCount:m_pAdapter3", m_pAdapter3);
+    _RELEASE(m_pAdapter3);
+
     _SHOW_REF("refCount:m_pAdapter", m_pAdapter);
     _RELEASE(m_pAdapter);
 
@@ -70,26 +91,21 @@ void CHW::DestroyD3D()
     _RELEASE(pFactory);
 }
 
-void CHW::CreateDevice(HWND m_hWnd, bool move_window)
+void CHW::CreateDevice(HWND m_hWnd)
 {
-    m_move_window = move_window;
     CreateD3D();
 
     // General - select adapter and device
     BOOL bWindowed = !psDeviceFlags.is(rsFullscreen);
 
-    m_DriverType = Caps.bForceGPU_REF ? D3D_DRIVER_TYPE_REFERENCE : D3D_DRIVER_TYPE_HARDWARE;
-
     // Display the name of video board
-#ifdef USE_DX11
-    DXGI_ADAPTER_DESC1 Desc;
+    DXGI_ADAPTER_DESC1 Desc{};
     R_CHK(m_pAdapter->GetDesc1(&Desc));
-#else
-    DXGI_ADAPTER_DESC Desc;
-    R_CHK(m_pAdapter->GetDesc(&Desc));
-#endif
+
+    DumpVideoMemoryUsage();
+
     //	Warning: Desc.Description is wide string
-    Msg("* GPU [vendor:%X]-[device:%X]: %S", Desc.VendorId, Desc.DeviceId, Desc.Description);
+    Msg("* Selected GPU [vendor:%X]-[device:%X]: %S", Desc.VendorId, Desc.DeviceId, Desc.Description);
 
     Caps.id_vendor = Desc.VendorId;
     Caps.id_device = Desc.DeviceId;
@@ -157,7 +173,6 @@ void CHW::CreateDevice(HWND m_hWnd, bool move_window)
         createDeviceFlags |= D3D_CREATE_DEVICE_DEBUG;
 #endif
 
-#ifdef USE_DX11
     const auto createDevice = [&](const D3D_FEATURE_LEVEL* level, const u32 levels) {
         return D3D11CreateDevice(m_pAdapter, D3D_DRIVER_TYPE_UNKNOWN, // Если мы выбираем конкретный адаптер, то мы обязаны использовать D3D_DRIVER_TYPE_UNKNOWN.
                                  nullptr, createDeviceFlags, level, levels, D3D11_SDK_VERSION, &pDevice, &FeatureLevel, &pContext);
@@ -174,26 +189,7 @@ void CHW::CreateDevice(HWND m_hWnd, bool move_window)
     R_CHK(pDevice->QueryInterface(IID_PPV_ARGS(&pDeviceDXGI)));
     R_CHK(pDeviceDXGI->SetMaximumFrameLatency(1));
     _RELEASE(pDeviceDXGI);
-#else
-    HRESULT R = D3DX10CreateDeviceAndSwapChain(m_pAdapter, m_DriverType, NULL, createDeviceFlags, &sd, &m_pSwapChain, &pDevice);
 
-    pContext = pDevice;
-    FeatureLevel = D3D_FEATURE_LEVEL_10_0;
-    if (!FAILED(R))
-    {
-        D3DX10GetFeatureLevel1(pDevice, &pDevice1);
-        FeatureLevel = D3D_FEATURE_LEVEL_10_1;
-    }
-    pContext1 = pDevice1;
-
-    if (FAILED(R))
-    {
-        // Fatal error! Cannot create rendering device AT STARTUP !!!
-        Msg("Failed to initialize graphics hardware.\nPlease try to restart the game.\nCreateDevice returned 0x%08x", R);
-        CHECK_OR_EXIT(!FAILED(R), "Failed to initialize graphics hardware.\nPlease try to restart the game.");
-    }
-    R_CHK(R);
-#endif
 
     _SHOW_REF("* CREATE: DeviceREF:", HW.pDevice);
 
@@ -205,10 +201,16 @@ void CHW::CreateDevice(HWND m_hWnd, bool move_window)
 
     updateWindowProps(m_hWnd);
     fill_vid_mode_list(this);
+
+    ImGui_ImplDX11_Init(m_hWnd, pDevice, pContext);
+
+    pContext->QueryInterface(IID_PPV_ARGS(&pAnnotation));
 }
 
 void CHW::DestroyDevice()
 {
+    ImGui_ImplDX11_Shutdown();
+
     //	Destroy state managers
     StateManager.Reset();
     RSManager.ClearStateArray();
@@ -218,6 +220,8 @@ void CHW::DestroyDevice()
 
     _SHOW_REF("refCount:pBaseZB", pBaseZB);
     _RELEASE(pBaseZB);
+
+    _RELEASE(pAnnotation);
 
     _SHOW_REF("refCount:pBaseRT", pBaseRT);
     _RELEASE(pBaseRT);
@@ -232,21 +236,15 @@ void CHW::DestroyDevice()
     _SHOW_REF("refCount:m_pSwapChain", m_pSwapChain);
     _RELEASE(m_pSwapChain);
 
-#ifdef USE_DX11
-    _RELEASE(pContext);
-#endif
 
-#ifndef USE_DX11
-    _RELEASE(HW.pDevice1);
-#endif
+    _RELEASE(pContext);
+
     _SHOW_REF("DeviceREF:", HW.pDevice);
     _RELEASE(HW.pDevice);
 
     DestroyD3D();
 
-#ifndef _EDITOR
     free_vid_mode_list();
-#endif
 }
 
 //////////////////////////////////////////////////////////////////////
@@ -254,6 +252,8 @@ void CHW::DestroyDevice()
 //////////////////////////////////////////////////////////////////////
 void CHW::Reset(HWND hwnd)
 {
+    ImGui_ImplDX11_InvalidateDeviceObjects();
+
     DXGI_SWAP_CHAIN_DESC& cd = m_ChainDesc;
 
     BOOL bWindowed = !psDeviceFlags.is(rsFullscreen);
@@ -290,6 +290,8 @@ void CHW::Reset(HWND hwnd)
     UpdateViews();
 
     updateWindowProps(hwnd);
+
+    ImGui_ImplDX11_CreateDeviceObjects();
 }
 
 D3DFORMAT CHW::selectDepthStencil(D3DFORMAT fTarget)
@@ -403,56 +405,82 @@ BOOL CHW::support(D3DFORMAT fmt, DWORD type, DWORD usage)
     return TRUE;
 }
 
+void CHW::DumpVideoMemoryUsage() const
+{
+    DXGI_ADAPTER_DESC1 Desc{};
+    R_CHK(m_pAdapter->GetDesc1(&Desc));
+
+    DXGI_QUERY_VIDEO_MEMORY_INFO videoMemoryInfo{};
+
+    if (m_pAdapter3 && SUCCEEDED(m_pAdapter3->QueryVideoMemoryInfo(0, DXGI_MEMORY_SEGMENT_GROUP_LOCAL, &videoMemoryInfo)))
+    {
+        Msg("\n\tDedicated VRAM: %zu MB (%zu bytes)\n\tDedicated Memory: %zu MB (%zu bytes)\n\tShared Memory: %zu MB (%zu bytes)\n\tCurrentUsage: %zu MB (%zu bytes)\n\tBudget: "
+            "%zu MB (%zu bytes)",
+            Desc.DedicatedVideoMemory / 1024 / 1024, Desc.DedicatedVideoMemory, Desc.DedicatedSystemMemory / 1024 / 1024, Desc.DedicatedSystemMemory,
+            Desc.SharedSystemMemory / 1024 / 1024, Desc.SharedSystemMemory, videoMemoryInfo.CurrentUsage / 1024 / 1024, videoMemoryInfo.CurrentUsage,
+            videoMemoryInfo.Budget / 1024 / 1024, videoMemoryInfo.Budget);
+    }
+    else
+    {
+        Msg("\n\tDedicated VRAM: %zu MB (%zu bytes)\n\tDedicated Memory: %zu MB (%zu bytes)\n\tShared Memory: %zu MB (%zu bytes)", Desc.DedicatedVideoMemory / 1024 / 1024,
+            Desc.DedicatedVideoMemory, Desc.DedicatedSystemMemory / 1024 / 1024, Desc.DedicatedSystemMemory, Desc.SharedSystemMemory / 1024 / 1024, Desc.SharedSystemMemory);
+    }
+}
+
 void CHW::updateWindowProps(HWND m_hWnd)
 {
-    //	BOOL	bWindowed				= strstr(Core.Params,"-dedicated") ? TRUE : !psDeviceFlags.is	(rsFullscreen);
-    BOOL bWindowed = !psDeviceFlags.is(rsFullscreen);
-
     LONG_PTR dwWindowStyle = 0;
     // Set window properties depending on what mode were in.
-    if (bWindowed)
+    if (!psDeviceFlags.is(rsFullscreen))
     {
-        if (m_move_window)
+        static const bool bBordersMode = !!strstr(Core.Params, "-draw_borders");
+        dwWindowStyle = WS_VISIBLE;
+        if (bBordersMode)
+            dwWindowStyle |= WS_BORDER | WS_DLGFRAME | WS_SYSMENU | WS_MINIMIZEBOX;
+
+        SetWindowLongPtr(m_hWnd, GWL_STYLE, dwWindowStyle);
+
+        // When moving from fullscreen to windowed mode, it is important to
+        // adjust the window size after recreating the device rather than
+        // beforehand to ensure that you get the window size you want.  For
+        // example, when switching from 640x480 fullscreen to windowed with
+        // a 1000x600 window on a 1024x768 desktop, it is impossible to set
+        // the window size to 1000x600 until after the display mode has
+        // changed to 1024x768, because windows cannot be larger than the
+        // desktop.
+
+        RECT m_rcWindowBounds{};
+        int fYOffset = 0;
+
+        static const bool bCenter = !!strstr(Core.Params, "-center_screen");
+        if (bCenter)
         {
-            static const bool bBordersMode = !!strstr(Core.Params, "-draw_borders");
-            dwWindowStyle = WS_VISIBLE;
+            RECT DesktopRect;
+
+            GetClientRect(GetDesktopWindow(), &DesktopRect);
+
+            SetRect(&m_rcWindowBounds, (DesktopRect.right - m_ChainDesc.BufferDesc.Width) / 2, (DesktopRect.bottom - m_ChainDesc.BufferDesc.Height) / 2,
+                    (DesktopRect.right + m_ChainDesc.BufferDesc.Width) / 2, (DesktopRect.bottom + m_ChainDesc.BufferDesc.Height) / 2);
+        }
+        else
+        {
             if (bBordersMode)
-                dwWindowStyle |= WS_BORDER | WS_DLGFRAME | WS_SYSMENU | WS_MINIMIZEBOX;
-            SetWindowLongPtr(m_hWnd, GWL_STYLE, dwWindowStyle);
+                fYOffset = GetSystemMetrics(SM_CYCAPTION); // size of the window title bar
 
-            // When moving from fullscreen to windowed mode, it is important to
-            // adjust the window size after recreating the device rather than
-            // beforehand to ensure that you get the window size you want.  For
-            // example, when switching from 640x480 fullscreen to windowed with
-            // a 1000x600 window on a 1024x768 desktop, it is impossible to set
-            // the window size to 1000x600 until after the display mode has
-            // changed to 1024x768, because windows cannot be larger than the
-            // desktop.
+            SetRect(&m_rcWindowBounds, 0, 0, m_ChainDesc.BufferDesc.Width, m_ChainDesc.BufferDesc.Height);
+        }
 
-            RECT m_rcWindowBounds;
-            int fYOffset = 0;
-            static const bool bCenter = !!strstr(Core.Params, "-center_screen");
-
-            if (bCenter)
-            {
-                RECT DesktopRect;
-
-                GetClientRect(GetDesktopWindow(), &DesktopRect);
-
-                SetRect(&m_rcWindowBounds, (DesktopRect.right - m_ChainDesc.BufferDesc.Width) / 2, (DesktopRect.bottom - m_ChainDesc.BufferDesc.Height) / 2,
-                        (DesktopRect.right + m_ChainDesc.BufferDesc.Width) / 2, (DesktopRect.bottom + m_ChainDesc.BufferDesc.Height) / 2);
-            }
-            else
-            {
-                if (bBordersMode)
-                    fYOffset = GetSystemMetrics(SM_CYCAPTION); // size of the window title bar
-                SetRect(&m_rcWindowBounds, 0, 0, m_ChainDesc.BufferDesc.Width, m_ChainDesc.BufferDesc.Height);
-            };
-
+        if (bBordersMode)
+        {
             AdjustWindowRect(&m_rcWindowBounds, DWORD(dwWindowStyle), FALSE);
 
-            SetWindowPos(m_hWnd, HWND_NOTOPMOST, m_rcWindowBounds.left, m_rcWindowBounds.top + fYOffset, (m_rcWindowBounds.right - m_rcWindowBounds.left),
-                         (m_rcWindowBounds.bottom - m_rcWindowBounds.top), SWP_SHOWWINDOW | SWP_NOCOPYBITS | SWP_DRAWFRAME);
+            SetWindowPos(m_hWnd, HWND_NOTOPMOST, m_rcWindowBounds.left, m_rcWindowBounds.top + fYOffset, m_rcWindowBounds.right - m_rcWindowBounds.left,
+                         m_rcWindowBounds.bottom - m_rcWindowBounds.top, SWP_SHOWWINDOW | SWP_NOCOPYBITS | SWP_DRAWFRAME);
+        }
+        else
+        {
+            SetWindowPos(m_hWnd, HWND_NOTOPMOST, 0, 0, m_rcWindowBounds.right - m_rcWindowBounds.left, m_rcWindowBounds.bottom - m_rcWindowBounds.top,
+                         SWP_SHOWWINDOW | SWP_NOCOPYBITS | SWP_DRAWFRAME);
         }
     }
     else
@@ -461,6 +489,7 @@ void CHW::updateWindowProps(HWND m_hWnd)
     }
 
     SetForegroundWindow(m_hWnd);
+
     pInput->clip_cursor(true);
 }
 
@@ -554,7 +583,7 @@ void CHW::UpdateViews()
     // Create a render target view
     // R_CHK	(pDevice->GetRenderTarget			(0,&pBaseRT));
     ID3DTexture2D* pBuffer;
-    R = m_pSwapChain->GetBuffer(0, __uuidof(ID3DTexture2D), (LPVOID*)&pBuffer);
+    R = m_pSwapChain->GetBuffer(0, IID_PPV_ARGS(&pBuffer));
     R_CHK(R);
 
     R = pDevice->CreateRenderTargetView(pBuffer, NULL, &pBaseRT);
@@ -565,7 +594,7 @@ void CHW::UpdateViews()
     //	HACK: DX10: hard depth buffer format
     // R_CHK	(pDevice->GetDepthStencilSurface	(&pBaseZB));
     ID3DTexture2D* pDepthStencil = NULL;
-    D3D_TEXTURE2D_DESC descDepth;
+    D3D_TEXTURE2D_DESC descDepth{};
     descDepth.Width = sd.BufferDesc.Width;
     descDepth.Height = sd.BufferDesc.Height;
     descDepth.MipLevels = 1;

@@ -19,8 +19,7 @@ CSCompiler& CSCompiler::begin(const char* name)
 
 CSCompiler& CSCompiler::defSampler(LPCSTR ResourceName)
 {
-    D3D11_SAMPLER_DESC desc;
-    ZeroMemory(&desc, sizeof(desc));
+    D3D11_SAMPLER_DESC desc{};
 
     //	Use D3DTADDRESS_CLAMP,	D3DTEXF_POINT,			D3DTEXF_NONE,	D3DTEXF_POINT
     if (0 == xr_strcmp(ResourceName, "smp_nofilter"))
@@ -120,8 +119,6 @@ CSCompiler& CSCompiler::defSampler(LPCSTR ResourceName, const D3D_SAMPLER_DESC& 
     return *this;
 }
 
-void fix_texture_name(LPSTR);
-
 CSCompiler& CSCompiler::defOutput(LPCSTR ResourceName, ref_rt rt)
 {
     VERIFY(ResourceName);
@@ -193,11 +190,20 @@ void CSCompiler::compile(const char* name)
     IReader* file = FS.r_open(cname);
     R_ASSERT2(file, cname);
 
+    file->skip_bom(cname);
+
     // Select target
     LPCSTR c_target = "cs_5_0";
     LPCSTR c_entry = "main";
 
-    HRESULT const _hr = ::Render->shader_compile(name, (DWORD const*)file->pointer(), file->length(), c_entry, c_target, D3D10_SHADER_PACK_MATRIX_ROW_MAJOR, (void*&)m_cs);
+    DWORD Flags{D3DCOMPILE_PACK_MATRIX_ROW_MAJOR};
+    if (strstr(Core.Params, "-shadersdbg"))
+    {
+        Flags |= D3DCOMPILE_DEBUG;
+        Flags |= D3DCOMPILE_SKIP_OPTIMIZATION;
+    }
+
+    HRESULT const _hr = ::Render->shader_compile(name, (DWORD const*)file->pointer(), file->elapsed(), c_entry, c_target, Flags, (void*&)m_cs);
 
     FS.r_close(file);
 

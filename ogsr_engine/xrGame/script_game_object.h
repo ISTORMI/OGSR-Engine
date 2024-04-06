@@ -228,7 +228,7 @@ public:
     void AddAction(const CScriptEntityAction* tpEntityAction, bool bHighPriority = false);
     void ResetActionQueue();
     // Actor only
-    void SetActorPosition(Fvector pos);
+    void SetActorPosition(Fvector pos, bool skipCollisionCorrect);
     void SetActorDirection(float dir);
     // CCustomMonster
     bool CheckObjectVisibility(const CScriptGameObject* tpLuaGameObject);
@@ -238,7 +238,7 @@ public:
     LPCSTR WhoHitSectionName();
 
     void ChangeTeam(u8 team, u8 squad, u8 group);
-    void SetNpcPosition(Fvector pos);
+    void SetNpcPosition(Fvector pos, bool skipCollisionCorrect);
 
     // CAI_Stalker
     CScriptGameObject* GetCurrentWeapon() const;
@@ -337,7 +337,7 @@ public:
     void ChangeGoodwill(int delta_goodwill, CScriptGameObject* pWhoToSet);
 
     void SetStartDialog(LPCSTR dialog_id);
-    void GetStartDialog();
+    const char* GetStartDialog();
     void RestoreDefaultStartDialog();
 
     void SwitchToTrade();
@@ -383,6 +383,7 @@ public:
     void SetTipText(LPCSTR tip_text);
     void SetTipTextDefault();
     void SetNonscriptUsable(bool nonscript_usable);
+    bool GetNonscriptUsable() const;
     ///////////////////////////////////////////////////////////////////////////////////////////
     void set_fastcall(const luabind::functor<bool>& functor, const luabind::object& object);
     void set_const_force(const Fvector& dir, float value, u32 time_interval);
@@ -645,8 +646,6 @@ public:
     bool IsActorOutdoors() const;
 
     /**************************************************** added by Cribbledirge END ****************************************************/
-
-    bool addon_IsActorHideout() const; // проверка что актор под каким либо укрытием
 
     // KD
     // functions for CInventoryOwner class

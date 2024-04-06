@@ -1,5 +1,5 @@
 #include "stdafx.h"
-#pragma hdrstop
+
 
 #include "../xrRender/uber_deffer.h"
 #include "Blender_deffer_model.h"
@@ -19,11 +19,13 @@ CBlender_deffer_model::~CBlender_deffer_model() {}
 
 void CBlender_deffer_model::Save(IWriter& fs)
 {
-    IBlender::Save(fs);
+    IBlenderXr::Save(fs);
+
     xrPWRITE_PROP(fs, "Use alpha-channel", xrPID_BOOL, oBlend);
     xrPWRITE_PROP(fs, "Alpha ref", xrPID_INTEGER, oAREF);
-    xrP_TOKEN::Item I;
     xrPWRITE_PROP(fs, "Tessellation", xrPID_TOKEN, oTessellation);
+
+    xrP_TOKEN::Item I;
     I.ID = 0;
     xr_strcpy(I.str, "NO_TESS");
     fs.w(&I, sizeof(I));
@@ -37,9 +39,10 @@ void CBlender_deffer_model::Save(IWriter& fs)
     xr_strcpy(I.str, "TESS_PN+HM");
     fs.w(&I, sizeof(I));
 }
+
 void CBlender_deffer_model::Load(IReader& fs, u16 version)
 {
-    IBlender::Load(fs, version);
+    IBlenderXr::Load(fs, version);
 
     switch (version)
     {
@@ -59,6 +62,24 @@ void CBlender_deffer_model::Load(IReader& fs, u16 version)
     {
         xrPREAD_PROP(fs, xrPID_TOKEN, oTessellation);
     }
+}
+
+void CBlender_deffer_model::SaveIni(CInifile* ini_file, LPCSTR section)
+{
+    IBlenderXr::SaveIni(ini_file, section);
+
+    WriteBool(ini_file, section, "alpha_channel", oBlend);
+    WriteInteger(ini_file, section, "alpha_ref", oAREF);
+    WriteToken(ini_file, section, "tessellation", oTessellation);
+}
+
+void CBlender_deffer_model::LoadIni(CInifile* ini_file, LPCSTR section)
+{
+    IBlenderXr::LoadIni(ini_file, section);
+
+    ReadBool(ini_file, section, "alpha_channel", oBlend);
+    ReadInteger(ini_file, section, "alpha_ref", oAREF);
+    ReadToken(ini_file, section, "tessellation", oTessellation);
 }
 
 void CBlender_deffer_model::Compile(CBlender_Compile& C)
@@ -112,8 +133,16 @@ void CBlender_deffer_model::Compile(CBlender_Compile& C)
                 C.r_End();
             }
 
-            uber_deffer(C, true, "model", "base", bAref, 0, true);
-
+            if (C.HudElement)
+            {
+                //Msg("--[%s] Detected hud element: [%s]", __FUNCTION__, C.L_textures[0].c_str());
+                uber_deffer(C, true, "model_hud", "base_hud", bAref, 0, true);
+                C.r_dx10Texture("s_hud_rain", "fx\\hud_rain");
+            }
+            else
+            {
+                uber_deffer(C, true, "model", "base", bAref, 0, true);
+            }
             C.r_Stencil(TRUE, D3DCMP_ALWAYS, 0xff, 0x7f, D3DSTENCILOP_KEEP, D3DSTENCILOP_REPLACE, D3DSTENCILOP_KEEP);
             C.r_StencilRef(0x01);
             if (bUseATOC)

@@ -31,14 +31,6 @@ struct CDestroyer
         data.clear();
     }
 
-    template <typename T1, typename T2>
-    IC static void delete_data(std::queue<T1, T2>& data)
-    {
-        std::queue<T1, T2> temp = data;
-        for (; !temp.empty(); temp.pop())
-            delete_data(temp.front());
-    }
-
     template <template <typename _1, typename _2> class T1, typename T2, typename T3>
     IC static void delete_data(T1<T2, T3>& data, bool)
     {
@@ -61,11 +53,6 @@ struct CDestroyer
         delete_data(data, true);
     }
 
-    template <typename T1, typename T2, typename T3>
-    IC static void delete_data(std::priority_queue<T1, T2, T3>& data)
-    {
-        delete_data(data, true);
-    }
 
     template <typename T>
     struct CHelper1
@@ -75,7 +62,7 @@ struct CDestroyer
         {}
 
         template <>
-        IC static void delete_data<true>(T& data)
+        IC void delete_data<true>(T& data)
         {
             data.destroy();
         }
@@ -91,7 +78,7 @@ struct CDestroyer
         }
 
         template <>
-        IC static void delete_data<true>(T& data)
+        IC void delete_data<true>(T& data)
         {
             if (data)
                 CDestroyer::delete_data(*data);
@@ -122,7 +109,7 @@ struct CDestroyer
         }
 
         template <>
-        IC static void delete_data<true>(T& data)
+        IC void delete_data<true>(T& data)
         {
             CHelper3::delete_data(data);
         }

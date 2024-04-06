@@ -1,7 +1,6 @@
 // file: D3DUtils.cpp
 
 #include "stdafx.h"
-#pragma hdrstop
 
 #include "../../xr_3da/gamefont.h"
 #include "d3dutils.h"
@@ -12,11 +11,6 @@
 #include "du_cylinder.h"
 
 #include "dxRenderDeviceRender.h"
-
-#pragma warning(push)
-#pragma warning(disable : 4995)
-#include <d3dx/d3dx9.h>
-#pragma warning(pop)
 
 CDrawUtilities DUImpl;
 
@@ -30,19 +24,7 @@ const u32 boxcolor = D3DCOLOR_RGBA(255, 255, 255, 0);
 static const int boxvertcount = 48;
 static Fvector boxvert[boxvertcount];
 
-#ifdef _EDITOR
-#define DU_DRAW_RS dxRenderDeviceRender::Instance().SetRS
-#define DU_DRAW_SH_C(a, c) \
-    { \
-        dxRenderDeviceRender::Instance().SetShader(a); \
-        dxRenderDeviceRender::Instance().SetRS(D3DRS_TEXTUREFACTOR, c); \
-    }
-#define DU_DRAW_SH(a) \
-    { \
-        dxRenderDeviceRender::Instance().SetShader(a); \
-        dxRenderDeviceRender::Instance().SetRS(D3DRS_TEXTUREFACTOR, 0xFFFFFFFF); \
-    }
-#else
+
 #define DU_DRAW_RS RCache.dbg_SetRS
 #define DU_DRAW_SH_C(sh, c) \
     { \
@@ -54,17 +36,11 @@ static Fvector boxvert[boxvertcount];
         RCache.set_Shader(sh); \
         RCache.set_c("tfactor", 1, 1, 1, 1); \
     }
-#endif
 
-#ifdef _EDITOR
-#define FILL_MODE dxRenderDeviceRender::Instance().dwFillMode
-#define SHADE_MODE dxRenderDeviceRender::Instance().dwShadeMode
-#define SCREEN_QUALITY dxRenderDeviceRender::Instance().m_ScreenQuality
-#else
+
 #define FILL_MODE D3DFILL_SOLID
 #define SHADE_MODE D3DSHADE_GOURAUD
 #define SCREEN_QUALITY 1.f
-#endif
 
 // identity box
 const u32 identboxcolor = D3DCOLOR_RGBA(255, 255, 255, 0);
@@ -109,41 +85,8 @@ u32 m_ColorSafeRect = 0xffB040B0;
 
 void SPrimitiveBuffer::CreateFromData(D3DPRIMITIVETYPE _pt, u32 _p_cnt, u32 FVF, LPVOID vertices, u32 _v_cnt, u16* indices, u32 _i_cnt)
 {
-#if defined(USE_DX10) || defined(USE_DX11)
 //	TODO: DX10: Implement SPrimitiveBuffer::CreateFromData for DX10
 //	VERIFY(!"SPrimitiveBuffer::CreateFromData not implemented for dx10");
-#else //	USE_DX10
-    ID3DVertexBuffer* pVB = 0;
-    ID3DIndexBuffer* pIB = 0;
-    p_cnt = _p_cnt;
-    p_type = _pt;
-    v_cnt = _v_cnt;
-    i_cnt = _i_cnt;
-    u32 stride = D3DXGetFVFVertexSize(FVF);
-    R_CHK(HW.pDevice->CreateVertexBuffer(v_cnt * stride, D3DUSAGE_WRITEONLY, 0, D3DPOOL_MANAGED, &pVB, 0));
-    HW.stats_manager.increment_stats_vb(pVB);
-    u8* bytes;
-    R_CHK(pVB->Lock(0, 0, (LPVOID*)&bytes, 0));
-    FLvertexVec verts(v_cnt);
-    for (u32 k = 0; k < v_cnt; ++k)
-        verts[k].set(((Fvector*)vertices)[k], 0xFFFFFFFF);
-    Memory.mem_copy(bytes, &*verts.begin(), v_cnt * stride);
-    R_CHK(pVB->Unlock());
-    if (i_cnt)
-    {
-        R_CHK(HW.pDevice->CreateIndexBuffer(i_cnt * sizeof(u16), D3DUSAGE_WRITEONLY, D3DFMT_INDEX16, D3DPOOL_MANAGED, &pIB, NULL));
-        HW.stats_manager.increment_stats_ib(pIB);
-        R_CHK(pIB->Lock(0, 0, (LPVOID*)&bytes, 0));
-        Memory.mem_copy(bytes, indices, i_cnt * sizeof(u16));
-        R_CHK(pIB->Unlock());
-        OnRender.bind(this, &SPrimitiveBuffer::RenderDIP);
-    }
-    else
-    {
-        OnRender.bind(this, &SPrimitiveBuffer::RenderDP);
-    }
-    pGeom.create(FVF, pVB, pIB);
-#endif //	USE_DX10
 }
 void SPrimitiveBuffer::Destroy()
 {
@@ -678,13 +621,9 @@ void CDrawUtilities::DrawLineSphere(const Fvector& p, float radius, u32 c, BOOL 
 }
 
 //----------------------------------------------------
-#ifdef _EDITOR
-IC float _x2real(float x) { return (x + 1) * Device.m_RenderWidth_2; }
-IC float _y2real(float y) { return (y + 1) * Device.m_RenderHeight_2; }
-#else
+
 IC float _x2real(float x) { return (x + 1) * Device.dwWidth * 0.5f; }
 IC float _y2real(float y) { return (y + 1) * Device.dwHeight * 0.5f; }
-#endif
 
 void CDrawUtilities::dbgDrawPlacement(const Fvector& p, int sz, u32 clr, LPCSTR caption, u32 clr_font)
 {

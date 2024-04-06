@@ -62,7 +62,6 @@ public:
 #endif
 
     // MRT-path
-    ref_rt rt_Depth; // Z-buffer like - initial depth
     ref_rt rt_MSAADepth; // z-buffer for MSAA deferred shading
     ref_rt rt_Generic_0_r; // MRT generic 0
     ref_rt rt_Generic_1_r; // MRT generic 1
@@ -103,20 +102,10 @@ public:
     ref_rt rt_smap_surf; // 32bit,		color
     ref_rt rt_smap_depth; // 24(32) bit,	depth
     ref_rt rt_smap_depth_minmax; //	is used for min/max sm
-    //	TODO: DX10: CHeck if we need old-style SMAP
-    //	IDirect3DSurface9*			rt_smap_ZB;		//
-
-    //	Igor: for async screenshots
-    ID3DTexture2D* t_ss_async; // 32bit		(r,g,b,a) is situated in the system memory
 
     // Textures
-    ID3DTexture3D* t_material_surf;
-    ref_texture t_material;
-
     ID3DTexture2D* t_noise_surf[TEX_jitter_count];
     ref_texture t_noise[TEX_jitter_count];
-    ID3DTexture2D* t_noise_surf_mipped;
-    ref_texture t_noise_mipped;
 
 private:
     // OCCq
@@ -197,6 +186,7 @@ private:
     ref_shader s_dof;
 
     ref_shader s_rain_drops;
+    ref_shader s_lut;
 
 public:
     ref_shader s_postprocess;
@@ -273,6 +263,7 @@ public:
     void shadow_direct(light* L, u32 dls_phase);
     void phase_blur();
     void phase_dof();
+    void phase_lut();
 
     //	Generates min/max sm
     void create_minmax_SM();
@@ -331,8 +322,6 @@ public:
     //	Don't clear when render for the first time
     void reset_light_marker(bool bResetStencil = false);
     void increment_light_marker();
-
-    void DoAsyncScreenshot();
 
 #ifdef DEBUG
     IC void dbg_addline(Fvector& P0, Fvector& P1, u32 c)

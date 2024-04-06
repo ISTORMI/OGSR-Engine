@@ -27,6 +27,7 @@ class CGameFont;
 // class IRenderDetailModel;
 
 extern const float fLightSmoothFactor;
+ENGINE_API extern int g_3dscopes_fps_factor;
 
 //////////////////////////////////////////////////////////////////////////
 // definition (Dynamic Light)
@@ -44,6 +45,7 @@ public:
 
 public:
     virtual void set_type(LT type) = 0;
+    virtual u32 get_type() const = 0;
     virtual void set_active(bool) = 0;
     virtual bool get_active() = 0;
     virtual void set_shadow(bool) = 0;
@@ -66,6 +68,9 @@ public:
 
     virtual void set_hud_mode(bool b) = 0;
     virtual bool get_hud_mode() = 0;
+
+    virtual void set_moveable(bool) = 0;
+
     virtual ~IRender_Light();
 };
 struct ENGINE_API resptrcode_light : public resptr_base<IRender_Light>
@@ -176,12 +181,12 @@ public:
         SM_FOR_CUBEMAP = 1, // tga,		name used as postfix
         SM_FOR_GAMESAVE = 2, // dds/dxt1,name used as full-path
         SM_FOR_LEVELMAP = 3, // tga,		name used as postfix (level_name)
-        SM_FOR_MPSENDING = 4,
         SM_forcedword = u32(-1)
     };
 
 public:
     // options
+    bool hud_loading{};
     s32 m_skinning;
     s32 m_MSAASample;
 
@@ -210,7 +215,6 @@ public:
     virtual void level_Load(IReader*) = 0;
     virtual void level_Unload() = 0;
 
-    // virtual IDirect3DBaseTexture9*	texture_load			(LPCSTR	fname, u32& msize)					= 0;
     void shader_option_skinning(s32 mode) { m_skinning = mode; }
     virtual HRESULT shader_compile(LPCSTR name, DWORD const* pSrcData, UINT SrcDataLen, LPCSTR pFunctionName, LPCSTR pTarget, DWORD Flags, void*& result) = 0;
 
@@ -271,6 +275,8 @@ public:
     virtual void model_Logging(BOOL bEnable) = 0;
     virtual void models_Prefetch() = 0;
     virtual void models_Clear(BOOL b_complete) = 0;
+    virtual void models_savePrefetch() = 0;
+    virtual void models_begin_prefetch1(bool val) = 0;
 
     // Occlusion culling
     virtual BOOL occ_visible(vis_data& V) = 0;
@@ -285,9 +291,6 @@ public:
     virtual void AfterUIRender() = 0; //После рендеринга UI. Вызывать только если нам нужно отрендерить кадр для пда.
 
     virtual void Screenshot(ScreenshotMode mode = SM_NORMAL, LPCSTR name = 0) = 0;
-    virtual void Screenshot(ScreenshotMode mode, CMemoryWriter& memory_writer) = 0;
-    virtual void ScreenshotAsyncBegin() = 0;
-    virtual void ScreenshotAsyncEnd(CMemoryWriter& memory_writer) = 0;
 
     // Render mode
     virtual void rmNear() = 0;
@@ -359,3 +362,29 @@ public:
 };
 
 ENGINE_API extern ShExports shader_exports;
+
+// Увеличивая или уменьшая максимальное кол-во здесь, обязательно нужно сделать тоже самое в вершинном шейдере в объявлении benders_pos. Там должно быть это значение умноженное на два.
+constexpr size_t GRASS_SHADER_DATA_COUNT = 16;
+
+struct GRASS_SHADER_DATA
+{
+    size_t index{};
+    u16 id[GRASS_SHADER_DATA_COUNT]{};
+    Fvector4 pos[GRASS_SHADER_DATA_COUNT]{}; //x,y,z - pos, w - radius
+    Fvector4 dir[GRASS_SHADER_DATA_COUNT]{}; // x,y,z - dir, w - str
+    float radius[GRASS_SHADER_DATA_COUNT]{};
+    float str_target[GRASS_SHADER_DATA_COUNT]{};
+    float time[GRASS_SHADER_DATA_COUNT]{};
+    float fade[GRASS_SHADER_DATA_COUNT]{};
+    float speed[GRASS_SHADER_DATA_COUNT]{};
+};
+
+ENGINE_API extern GRASS_SHADER_DATA grass_shader_data;
+
+extern Fvector4 ps_ssfx_grass_interactive;
+extern Fvector4 ps_ssfx_int_grass_params_2;
+extern Fvector4 ps_ssfx_hud_drops_1, ps_ssfx_hud_drops_2, ps_ssfx_hud_drops_1_cfg, ps_ssfx_hud_drops_2_cfg;
+extern Fvector4 ps_ssfx_wetsurfaces_1, ps_ssfx_wetsurfaces_2, ps_ssfx_wetsurfaces_1_cfg, ps_ssfx_wetsurfaces_2_cfg;
+extern Fvector4 ps_ssfx_lightsetup_1;
+extern float ps_ssfx_gloss_factor;
+extern Fvector3 ps_ssfx_gloss_minmax;

@@ -30,6 +30,7 @@
 #include "GameTask.h"
 #include "car.h"
 #include "sight_manager_space.h"
+#include "../xr_3da/IGame_Persistent.h"
 
 using namespace luabind;
 
@@ -68,9 +69,9 @@ class_<CScriptGameObject> script_register_game_object2(class_<CScriptGameObject>
         .def("angle_cover",
              (const CCoverPoint* (CScriptGameObject::*)(const Fvector&, float, const Fvector&, float, float, u32, const luabind::functor<bool>&))(&CScriptGameObject::angle_cover))
         .def("spawn_ini", &CScriptGameObject::spawn_ini)
-        .def("memory_visible_objects", &CScriptGameObject::memory_visible_objects, return_stl_iterator)
-        .def("memory_sound_objects", &CScriptGameObject::memory_sound_objects, return_stl_iterator)
-        .def("memory_hit_objects", &CScriptGameObject::memory_hit_objects, return_stl_iterator)
+        .def("memory_visible_objects", &CScriptGameObject::memory_visible_objects, return_stl_safe_iterator)
+        .def("memory_sound_objects", &CScriptGameObject::memory_sound_objects, return_stl_safe_iterator)
+        .def("memory_hit_objects", &CScriptGameObject::memory_hit_objects, return_stl_safe_iterator)
         .def("not_yet_visible_objects", &CScriptGameObject::not_yet_visible_objects, return_stl_iterator)
         .def("visibility_threshold", &CScriptGameObject::visibility_threshold)
         .def("enable_vision", &CScriptGameObject::enable_vision)
@@ -111,7 +112,7 @@ class_<CScriptGameObject> script_register_game_object2(class_<CScriptGameObject>
         .def("base_out_restrictions", &CScriptGameObject::base_out_restrictions)
         .def("accessible", &CScriptGameObject::accessible_position)
         .def("accessible", &CScriptGameObject::accessible_vertex_id)
-        .def("accessible_nearest", &CScriptGameObject::accessible_nearest, out_value<3>())
+        .def("accessible_nearest", &CScriptGameObject::accessible_nearest, pure_out_value<3>())
 
         //////////////////////////////////////////////////////////////////////////
         .def("enable_attachable_item", &CScriptGameObject::enable_attachable_item)
@@ -213,6 +214,7 @@ class_<CScriptGameObject> script_register_game_object2(class_<CScriptGameObject>
         .def("set_tip_text", &CScriptGameObject::SetTipText)
         .def("set_tip_text_default", &CScriptGameObject::SetTipTextDefault)
         .def("set_nonscript_usable", &CScriptGameObject::SetNonscriptUsable)
+        .def("get_nonscript_usable", &CScriptGameObject::GetNonscriptUsable)
 
         // Script Zone
         .def("active_zone_contact", &CScriptGameObject::active_zone_contact)
@@ -277,7 +279,7 @@ class_<CScriptGameObject> script_register_game_object2(class_<CScriptGameObject>
 
         /**************************************************** added by Cribbledirge END ****************************************************/
 
-        .def("is_ActorHide", &CScriptGameObject::addon_IsActorHideout) // проверка что актор под  каким либо укрытием
+        .def("is_ActorHide", [] { return g_pGamePersistent->IsActorInHideout(); }) // проверка что актор под  каким либо укрытием
 
         // KD
         // functions for CInventoryOwner class
@@ -309,6 +311,10 @@ class_<CScriptGameObject> script_register_game_object2(class_<CScriptGameObject>
         .def("is_actor", &CScriptGameObject::IsActor)
         .def("is_custom_monster", &CScriptGameObject::IsCustomMonster)
         .def("is_weapon", &CScriptGameObject::IsWeapon)
+        .def("is_weapon_magazined", &CScriptGameObject::IsWeaponMagazined)
+        .def("is_weapon_shotgun", &CScriptGameObject::IsWeaponShotgun)
+        .def("is_weapon_gl", &CScriptGameObject::IsWeaponGL)
+        .def("is_binoculars", &CScriptGameObject::IsWeaponBinoculars)
         .def("is_medkit", &CScriptGameObject::IsMedkit)
         .def("is_eatable_item", &CScriptGameObject::IsEatableItem)
         .def("is_antirad", &CScriptGameObject::IsAntirad)
@@ -316,8 +322,6 @@ class_<CScriptGameObject> script_register_game_object2(class_<CScriptGameObject>
         .def("is_scope", &CScriptGameObject::IsScope)
         .def("is_silencer", &CScriptGameObject::IsSilencer)
         .def("is_grenade_launcher", &CScriptGameObject::IsGrenadeLauncher)
-        .def("is_weapon_magazined", &CScriptGameObject::IsWeaponMagazined)
-        .def("is_weapon_shotgun", &CScriptGameObject::IsWeaponShotgun)
         .def("is_space_restrictor", &CScriptGameObject::IsSpaceRestrictor)
         .def("is_stalker", &CScriptGameObject::IsStalker)
         .def("is_anomaly", &CScriptGameObject::IsAnomaly)
@@ -336,9 +340,7 @@ class_<CScriptGameObject> script_register_game_object2(class_<CScriptGameObject>
         .def("is_grenade", &CScriptGameObject::IsGrenade)
         .def("is_bottle_item", &CScriptGameObject::IsBottleItem)
         .def("is_torch", &CScriptGameObject::IsTorch)
-        .def("is_weapon_gl", &CScriptGameObject::IsWeaponGL)
         .def("is_inventory_box", &CScriptGameObject::IsInventoryBox)
-        .def("is_binoculars", &CScriptGameObject::IsWeaponBinoculars)
         .def("is_knife", &CScriptGameObject::IsKnife)
         .def("is_pistol", &CScriptGameObject::IsPistol)
 

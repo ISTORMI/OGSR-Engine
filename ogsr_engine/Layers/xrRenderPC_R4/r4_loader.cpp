@@ -15,14 +15,24 @@
 
 #include "../xrRender/FHierrarhyVisual.h"
 
+#include <Utilities/FlexibleVertexFormat.h>
+
 void CRender::level_Load(IReader* fs)
 {
     R_ASSERT(0 != g_pGameLevel);
     R_ASSERT(!b_loaded);
 
+    u32 m_base, c_base, m_lmaps, c_lmaps;
+    Device.m_pRender->ResourcesGetMemoryUsage(m_base, c_base, m_lmaps, c_lmaps);
+
+    Msg("~ LevelResources load...");
+    Msg("~ LevelResources - base: %d, %d K", c_base, m_base / 1024);
+    Msg("~ LevelResources - lmap: %d, %d K", c_lmaps, m_lmaps / 1024);
+
     // Begin
     pApp->LoadBegin();
-    dxRenderDeviceRender::Instance().Resources->DeferredLoad(TRUE);
+    Device.m_pRender->DeferredLoad(TRUE);
+
     IReader* chunk;
 
     // Shaders
@@ -52,7 +62,6 @@ void CRender::level_Load(IReader* fs)
     Wallmarks = xr_new<CWallmarksEngine>();
     Details = xr_new<CDetailManager>();
 
-    if (!g_dedicated_server)
     {
         // VB,IB,SWI
         g_pGamePersistent->LoadTitle("st_loading_geometry");
@@ -100,6 +109,13 @@ void CRender::level_Load(IReader* fs)
     // End
     pApp->LoadEnd();
 
+    //u32 m_base, c_base, m_lmaps, c_lmaps;
+    Device.m_pRender->ResourcesGetMemoryUsage(m_base, c_base, m_lmaps, c_lmaps);
+
+    Msg("~ LevelResources load completed!");
+    Msg("~ LevelResources - base: %d, %d K", c_base, m_base / 1024);
+    Msg("~ LevelResources - lmap: %d, %d K", c_lmaps, m_lmaps / 1024);
+
     // sanity-clear
     lstLODs.clear();
     lstLODgroups.clear();
@@ -113,8 +129,17 @@ void CRender::level_Unload()
 {
     if (0 == g_pGameLevel)
         return;
+
     if (!b_loaded)
         return;
+
+    
+    u32 m_base, c_base, m_lmaps, c_lmaps;
+    Device.m_pRender->ResourcesGetMemoryUsage(m_base, c_base, m_lmaps, c_lmaps);
+
+    Msg("~ LevelResources unload...");
+    Msg("~ LevelResources - base: %d, %d K", c_base, m_base / 1024);
+    Msg("~ LevelResources - lmap: %d, %d K", c_lmaps, m_lmaps / 1024);
 
     u32 I;
 
@@ -177,6 +202,14 @@ void CRender::level_Unload()
 
     //*** Shaders
     Shaders.clear();
+
+    // u32 m_base, c_base, m_lmaps, c_lmaps;
+    Device.m_pRender->ResourcesGetMemoryUsage(m_base, c_base, m_lmaps, c_lmaps);
+
+    Msg("~ LevelResources unload completed!");
+    Msg("~ LevelResources - base: %d, %d K", c_base, m_base / 1024);
+    Msg("~ LevelResources - lmap: %d, %d K", c_lmaps, m_lmaps / 1024);
+
     b_loaded = FALSE;
 }
 
@@ -208,13 +241,13 @@ void CRender::LoadBuffers(CStreamReader* base_fs, BOOL _alternative)
             fs->r(dcl, buffer_size);
             fs->advance(-(int)buffer_size);
 
-            u32 dcl_len = D3DXGetDeclLength(dcl) + 1;
+            u32 dcl_len = FVF::GetDeclLength(dcl) + 1;
             _DC[i].resize(dcl_len);
             fs->r(_DC[i].begin(), dcl_len * sizeof(D3DVERTEXELEMENT9));
 
             // count, size
             u32 vCount = fs->r_u32();
-            u32 vSize = D3DXGetDeclVertexSize(dcl, 0);
+            u32 vSize = FVF::ComputeVertexSize(dcl, 0);
             Msg("* [Loading VB] %d verts, %d Kb", vCount, (vCount * vSize) / 1024);
 
             // Create and fill
@@ -400,11 +433,8 @@ void CRender::LoadSWIs(CStreamReader* base_fs)
 
 void CRender::Load3DFluid()
 {
-    // if (strstr(Core.Params,"-no_volumetric_fog"))
-    if (!RImplementation.o.volumetricfog)
+    if (!ps_r2_ls_flags.test(R3FLAG_VOLUMETRIC_SMOKE))
         return;
-
-#ifdef DX10_FLUID_ENABLE
 
     string_path fn_game;
     if (FS.exist(fn_game, "$level$", "level.fog_vol"))
@@ -420,15 +450,29 @@ void CRender::Load3DFluid()
                 dx103DFluidVolume* pVolume = xr_new<dx103DFluidVolume>();
                 pVolume->Load("", F, 0);
 
+                const auto& v = pVolume->getVisData().sphere.P;
+
+                Msg("~ Loading fog volume with profile [%s]. Position x=[%f] y=[%f] z=[%f]", pVolume->getProfileName().c_str(), v.x, v.y, v.z);
+
                 //	Attach to sector's static geometry
                 CSector* pSector = (CSector*)detectSector(pVolume->getVisData().sphere.P);
+
+                if (!pSector)
+                {
+                    Msg("!!Cannot find sector for fog volume. Position x=[%f] y=[%f] z=[%f]!", v.x, v.y, v.z);
+
+                    xr_delete(pVolume);
+
+                    continue;
+                }
+
                 //	3DFluid volume must be in render sector
-                VERIFY(pSector);
+                R_ASSERT(pSector);
 
                 dxRender_Visual* pRoot = pSector->root();
                 //	Sector must have root
-                VERIFY(pRoot);
-                VERIFY(pRoot->getType() == MT_HIERRARHY);
+                R_ASSERT(pRoot);
+                R_ASSERT(pRoot->getType() == MT_HIERRARHY);
 
                 ((FHierrarhyVisual*)pRoot)->children.push_back(pVolume);
             }
@@ -436,6 +480,4 @@ void CRender::Load3DFluid()
 
         FS.r_close(F);
     }
-
-#endif
 }

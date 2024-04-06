@@ -29,6 +29,8 @@
 
 //#define USE_SMART_HITS
 #define USE_IK
+constexpr float IK_CALC_DIST = 100.f;
+constexpr float IK_ALWAYS_CALC_DIST = 20.f;
 
 void NodynamicsCollide(bool& do_colide, bool bo1, dContact& c, SGameMtl* /*material_1*/, SGameMtl* /*material_2*/)
 {
@@ -280,6 +282,7 @@ void CCharacterPhysicsSupport::in_NetDestroy()
     CPHDestroyable::RespawnInit();
     m_eState = esAlive;
     xr_delete(m_interactive_motion);
+    destroy_animation_collision();
     DestroyIKController();
 }
 
@@ -488,6 +491,7 @@ void CCharacterPhysicsSupport::in_UpdateCL()
     {
         return;
     }
+    update_animation_collision();
     CalculateTimeDelta();
     if (m_pPhysicsShell)
     {
@@ -508,7 +512,23 @@ void CCharacterPhysicsSupport::in_UpdateCL()
         m_PhysicMovementControl->DestroyCharacter();
     }
     else if (ik_controller())
-        ik_controller()->Update();
+    {
+        CFrustum& view_frust = ::Render->ViewBase;
+        vis_data& vis = m_EntityAlife.Visual()->getVisData();
+        Fvector p;
+
+        m_EntityAlife.XFORM().transform_tiny(p, vis.sphere.P);
+
+        float dist = Device.vCameraPosition.distance_to(p);
+
+        if (dist < IK_CALC_DIST)
+        {
+            if (view_frust.testSphere_dirty(p, vis.sphere.R) || dist < IK_ALWAYS_CALC_DIST)
+            {
+                ik_controller()->Update();
+            }
+        }
+    }
 
 #ifdef DEBUG
     if (Type() == etStalker && ph_dbg_draw_mask1.test(phDbgHitAnims))
@@ -638,7 +658,11 @@ void CCharacterPhysicsSupport::set_movement_position(const Fvector& pos)
 
 void CCharacterPhysicsSupport::ActivateShell(CObject* who)
 {
+
     DestroyIKController();
+
+    destroy_animation_collision();
+
     IKinematics* K = smart_cast<IKinematics*>(m_EntityAlife.Visual());
 
     // animation movement controller issues
@@ -681,9 +705,8 @@ void CCharacterPhysicsSupport::ActivateShell(CObject* who)
     }
 
 //////////////////////this needs to evaluate object box//////////////////////////////////////////////////////
-#pragma todo("KRodin: V621 Consider inspecting the 'for' operator. It's possible that the loop will be executed incorrectly or won't be executed at all.")
-    for (u16 I = K->LL_BoneCount() - 1; I != u16(-1); --I)
-        K->LL_GetBoneInstance(I).reset_callback();
+    for (u16 I = K->LL_BoneCount(); I > 0;)
+        K->LL_GetBoneInstance(--I).reset_callback();
 
     if (anim_mov_ctrl) // we do not whant to move by long animation in root
         BR.set_callback_overwrite(TRUE);
@@ -776,6 +799,9 @@ void CCharacterPhysicsSupport::in_ChangeVisual()
         CreateIKController();
     }
 
+    destroy_animation_collision();
+    destroy_motion(m_interactive_motion);
+
     if (!m_physics_skeleton && !m_pPhysicsShell)
         return;
 
@@ -801,6 +827,8 @@ void CCharacterPhysicsSupport::in_ChangeVisual()
         m_death_anims.setup(ka, m_EntityAlife.cNameSect().c_str(), pSettings);
     }
 }
+
+void CCharacterPhysicsSupport::destroy_imotion() { destroy_motion(m_interactive_motion); }
 
 bool CCharacterPhysicsSupport::CanRemoveObject()
 {
@@ -917,8 +945,7 @@ void CCharacterPhysicsSupport::TestForWounded()
     position_matrix.mul(mXFORM, CBI.mTransform);
 
     xrXRC xrc;
-    xrc.ray_options(0);
-    xrc.ray_query(Level().ObjectSpace.GetStaticModel(), position_matrix.c, Fvector().set(0.0f, -1.0f, 0.0f), pelvis_factor_low_pose_detect);
+    xrc.ray_query(0, Level().ObjectSpace.GetStaticModel(), position_matrix.c, Fvector().set(0.0f, -1.0f, 0.0f), pelvis_factor_low_pose_detect);
 
     if (xrc.r_count())
     {
@@ -1006,3 +1033,30 @@ void CCharacterPhysicsSupport::on_destroy_anim_mov_ctrl()
 }
 
 void CCharacterPhysicsSupport::SyncNetState() { CPHSkeleton::SyncNetState(); }
+
+constexpr u32 physics_shell_animated_destroy_delay = 3000;
+
+void CCharacterPhysicsSupport::destroy_animation_collision()
+{
+    xr_delete(m_physics_shell_animated);
+    m_physics_shell_animated_time_destroy = u32(-1);
+}
+
+void CCharacterPhysicsSupport::create_animation_collision()
+{
+    m_physics_shell_animated_time_destroy = Device.dwTimeGlobal + physics_shell_animated_destroy_delay;
+    if (m_physics_shell_animated)
+        return;
+    m_physics_shell_animated = xr_new<physics_shell_animated>(&m_EntityAlife, true);
+}
+
+void CCharacterPhysicsSupport::update_animation_collision()
+{
+    if (animation_collision())
+    {
+        animation_collision()->update(mXFORM);
+        // animation_collision( )->shell()->set_LinearVel( movement()->GetVelocity() );
+        if (Device.dwTimeGlobal > m_physics_shell_animated_time_destroy)
+            destroy_animation_collision();
+    }
+}

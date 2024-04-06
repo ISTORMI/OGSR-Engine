@@ -93,6 +93,7 @@ void CShootingObject::Light_Create()
         light_render->set_shadow(true);
     else
         light_render->set_shadow(false);
+    light_render->set_moveable(true);
 }
 
 void CShootingObject::Light_Destroy() { light_render.destroy(); }
@@ -409,12 +410,10 @@ bool CShootingObject::SendHitAllowed(CObject* pUser)
     }
 };
 
-extern void random_dir(Fvector& tgt_dir, const Fvector& src_dir, float dispersion);
-
 void CShootingObject::FireBullet(const Fvector& pos, const Fvector& shot_dir, float fire_disp, const CCartridge& cartridge, u16 parent_id, u16 weapon_id, bool send_hit)
 {
     Fvector dir;
-    random_dir(dir, shot_dir, fire_disp);
+    dir.random_dir(shot_dir, fire_disp);
 
     if (!Core.Features.test(xrCore::Feature::npc_simplified_shooting) || ParentIsActor())
         if (!fis_zero(constDeviation.pitch) || !fis_zero(constDeviation.yaw))
@@ -434,7 +433,7 @@ void CShootingObject::FireBullet(const Fvector& pos, const Fvector& shot_dir, fl
     bool aim_bullet;
     if (m_bUseAimBullet)
     {
-        if (ParentMayHaveAimBullet())
+        if (ParentIsActor())
         {
             if (m_fPredBulletTime == 0.0)
             {

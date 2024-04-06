@@ -2,9 +2,9 @@
 #include <psapi.h>
 #include "xrsharedmem.h"
 
-//#ifndef _DEBUG
+#ifndef __SANITIZE_ADDRESS__
 #define USE_MIMALLOC
-//#endif
+#endif
 
 #ifdef USE_MIMALLOC
 #include "..\mimalloc\include\mimalloc-override.h"
@@ -19,18 +19,27 @@
 #pragma comment(lib, "mimalloc-static")
 #endif
 
-#ifdef USE_MEMORY_VALIDATOR
-#include "xrMemoryDebug.h"
-#endif
-
 xrMemory Memory;
 
 void xrMemory::_initialize()
 {
     stat_calls = 0;
 
+    SProcessMemInfo memCounters;
+    GetProcessMemInfo(memCounters);
+
+    u64 disableMemoryTotalMb = 32000ull;
+    if (char* str = strstr(Core.Params, "-smem_disable_limit "))
+        sscanf(str + 20, "%llu", &disableMemoryTotalMb);
+    bool disableMemoryPool = memCounters.TotalPhysicalMemory > (disableMemoryTotalMb * (1024ull * 1024ull));
+
+    if (disableMemoryPool)
+    {
+        Msg("--[%s] memory pool disabled due to available memory limit: [%u MB]", __FUNCTION__, disableMemoryTotalMb);
+    }
+
     g_pStringContainer = xr_new<str_container>();
-    g_pSharedMemoryContainer = xr_new<smem_container>();
+    g_pSharedMemoryContainer = xr_new<smem_container>(disableMemoryPool);
 }
 
 void xrMemory::_destroy()
@@ -63,9 +72,7 @@ void* xrMemory::mem_alloc(size_t size)
     stat_calls++;
 
     void* ptr = malloc(size);
-#ifdef USE_MEMORY_VALIDATOR
-    RegisterPointer(ptr);
-#endif
+
     return ptr;
 }
 
@@ -73,9 +80,6 @@ void xrMemory::mem_free(void* P)
 {
     stat_calls++;
 
-#ifdef USE_MEMORY_VALIDATOR
-    UnregisterPointer(P);
-#endif
     free(P);
 }
 
@@ -83,15 +87,12 @@ void* xrMemory::mem_realloc(void* P, size_t size)
 {
     stat_calls++;
 
-#ifdef USE_MEMORY_VALIDATOR
-    UnregisterPointer(P);
-#endif
     void* ptr = realloc(P, size);
-#ifdef USE_MEMORY_VALIDATOR
-    RegisterPointer(ptr);
-#endif
+
     return ptr;
 }
+
+u32 xrMemory::mem_usage(u32* pBlocksUsed, u32* pBlocksFree) { return u32(mem_usage_impl(pBlocksUsed, pBlocksFree)); }
 
 void GetProcessMemInfo(SProcessMemInfo& minfo)
 {
@@ -103,7 +104,15 @@ void GetProcessMemInfo(SProcessMemInfo& minfo)
 
     minfo.TotalPhysicalMemory = mem.ullTotalPhys;
     minfo.FreePhysicalMemory = mem.ullAvailPhys;
-    minfo.TotalVirtualMemory = mem.ullTotalVirtual;
+
+    minfo.TotalPageFile = mem.ullTotalPageFile - mem.ullTotalPhys;
+
+    if (minfo.TotalPageFile > 0l)
+    {
+        // эта херня погоду показывает на самом деле. надо найти способ как получить свободный размер файла подкачки
+        minfo.FreePageFile = mem.ullAvailPageFile > mem.ullAvailPhys ? mem.ullAvailPageFile - mem.ullAvailPhys : mem.ullAvailPageFile;
+    }
+
     minfo.MemoryLoad = mem.dwMemoryLoad;
 
     PROCESS_MEMORY_COUNTERS pc;
@@ -111,11 +120,24 @@ void GetProcessMemInfo(SProcessMemInfo& minfo)
     pc.cb = sizeof(pc);
     if (GetProcessMemoryInfo(GetCurrentProcess(), &pc, sizeof(pc)))
     {
-        minfo.PeakWorkingSetSize = pc.PeakWorkingSetSize;
         minfo.WorkingSetSize = pc.WorkingSetSize;
+        minfo.PeakWorkingSetSize = pc.PeakWorkingSetSize;
+
         minfo.PagefileUsage = pc.PagefileUsage;
         minfo.PeakPagefileUsage = pc.PeakPagefileUsage;
     }
+
+#ifdef USE_MIMALLOC
+    Log("####################[+MIMALLOC+]####################");
+    mi_stats_print_out(
+        [](const char* msg, void*) {
+            std::string str{msg};
+            xr_string_utils::rtrim(str);
+            Log(str);
+        },
+        nullptr);
+    Log("####################[-MIMALLOC-]####################");
+#endif
 }
 
 size_t mem_usage_impl(u32* pBlocksUsed, u32* pBlocksFree)
@@ -157,5 +179,3 @@ size_t mem_usage_impl(u32* pBlocksUsed, u32* pBlocksFree)
     }
     return total;
 }
-
-u32 xrMemory::mem_usage(u32* pBlocksUsed, u32* pBlocksFree) { return u32(mem_usage_impl(pBlocksUsed, pBlocksFree)); }

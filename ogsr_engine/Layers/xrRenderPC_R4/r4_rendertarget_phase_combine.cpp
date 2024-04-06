@@ -6,32 +6,6 @@
 
 #define STENCIL_CULL 0
 
-void CRenderTarget::DoAsyncScreenshot()
-{
-    //	Igor: screenshot will not have postprocess applied.
-    //	TODO: fox that later
-    if (RImplementation.m_bMakeAsyncSS)
-    {
-        HRESULT hr;
-
-        //	HACK: unbind RT. CopyResourcess needs src and targetr to be unbound.
-        // u_setrt				( Device.dwWidth,Device.dwHeight,HW.pBaseRT,NULL,NULL,HW.pBaseZB);
-
-        // ID3DTexture2D *pTex = 0;
-        // if (RImplementation.o.dx10_msaa)
-        //	pTex = rt_Generic->pSurface;
-        // else
-        //	pTex = rt_Color->pSurface;
-
-        // HW.pDevice->CopyResource( t_ss_async, pTex );
-        ID3DTexture2D* pBuffer;
-        hr = HW.m_pSwapChain->GetBuffer(0, __uuidof(ID3D10Texture2D), (LPVOID*)&pBuffer);
-        HW.pContext->CopyResource(t_ss_async, pBuffer);
-
-        RImplementation.m_bMakeAsyncSS = false;
-    }
-}
-
 float hclip(float v, float dim) { return 2.f * v / dim - 1.f; }
 void CRenderTarget::phase_combine()
 {
@@ -118,9 +92,7 @@ void CRenderTarget::phase_combine()
         static Fmatrix m_saved_viewproj;
 
         // (new-camera) -> (world) -> (old_viewproj)
-        Fmatrix m_invview;
-        m_invview.invert(Device.mView);
-        m_previous.mul(m_saved_viewproj, m_invview);
+        m_previous.mul(m_saved_viewproj, Device.mInvView);
         m_current.set(Device.mProject);
         m_saved_viewproj.set(Device.mFullTransform);
         float scale = ps_r2_mblur / 2.f;
@@ -132,8 +104,6 @@ void CRenderTarget::phase_combine()
     {
         PIX_EVENT(combine_1);
         // Compute params
-        Fmatrix m_v2w;
-        m_v2w.invert(Device.mView);
         CEnvDescriptorMixer& envdesc = *g_pGamePersistent->Environment().CurrentEnv;
         const float minamb = 0.001f;
         Fvector4 ambclr = {std::max(envdesc.ambient.x * 2, minamb), std::max(envdesc.ambient.y * 2, minamb), std::max(envdesc.ambient.z * 2, minamb), 0};
@@ -209,9 +179,7 @@ void CRenderTarget::phase_combine()
         ID3DBaseTexture* e0 = _menu_pp ? 0 : envdescren.sky_r_textures_env[0].second->surface_get();
         ID3DBaseTexture* e1 = _menu_pp ? 0 : envdescren.sky_r_textures_env[1].second->surface_get();
         t_envmap_0->surface_set(e0);
-        _RELEASE(e0);
         t_envmap_1->surface_set(e1);
-        _RELEASE(e1);
 
         // Draw
         RCache.set_Element(s_combine->E[0]);
@@ -222,7 +190,7 @@ void CRenderTarget::phase_combine()
         m_inv_v.invert(Device.mView);
         RCache.set_c("m_inv_v", m_inv_v);
 
-        RCache.set_c("m_v2w", m_v2w);
+        RCache.set_c("m_v2w", Device.mInvView);
         RCache.set_c("L_ambient", ambclr);
 
         RCache.set_c("Ldynamic_color", sunclr);
@@ -344,14 +312,8 @@ void CRenderTarget::phase_combine()
        }
        */
 
-    // PP enabled ?
-    //	Render to RT texture to be able to copy RT even in windowed mode.
-    BOOL PP_Complex = u_need_PP() | (BOOL)RImplementation.m_bMakeAsyncSS;
-    if (_menu_pp)
-        PP_Complex = FALSE;
-
     // HOLGER - HACK
-    PP_Complex = TRUE;
+    BOOL PP_Complex = TRUE;
 
     // Postprocess anti-aliasing
     if (ps_r_pp_aa_mode)
@@ -361,8 +323,8 @@ void CRenderTarget::phase_combine()
     {
         // Compute blur textures
         phase_blur();
-
         phase_dof();
+        phase_lut();	
 
         // Rain droplets on screen
         if (ps_r2_ls_flags_ext.test(R2FLAGEXT_RAIN_DROPS))
@@ -465,11 +427,6 @@ void CRenderTarget::phase_combine()
         RCache.set_c("m_current", m_current);
         RCache.set_c("m_previous", m_previous);
         RCache.set_c("m_blur", m_blur_scale.x, m_blur_scale.y, 0, 0);
-        Fvector3 dof;
-        g_pGamePersistent->GetCurrentDof(dof);
-        RCache.set_c("dof_params", dof.x, dof.y, dof.z, ps_r2_dof_sky);
-        //.		RCache.set_c				("dof_params",	ps_r2_dof.x, ps_r2_dof.y, ps_r2_dof.z, ps_r2_dof_sky);
-        RCache.set_c("dof_kernel", vDofKernel.x, vDofKernel.y, ps_r2_dof_kernel_size, 0);
 
         RCache.set_Geometry(g_aa_AA);
         RCache.Render(D3DPT_TRIANGLELIST, Offset, 0, 4, 0, 2);
