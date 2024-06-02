@@ -96,9 +96,6 @@ void CWeapon::UpdateXForm()
     {
         dwXF_Frame = Device.dwFrame;
 
-        if (0 == H_Parent())
-            return;
-
         // Get access to entity and its visual
         CEntityAlive* E = smart_cast<CEntityAlive*>(H_Parent());
 
@@ -112,7 +109,6 @@ void CWeapon::UpdateXForm()
         if (parent->attached(this))
             return;
 
-        R_ASSERT(E);
         IKinematics* V = smart_cast<IKinematics*>(E->Visual());
         VERIFY(V);
 
@@ -128,12 +124,19 @@ void CWeapon::UpdateXForm()
         if (boneL == BI_NONE || boneR == BI_NONE)
             return;
 
-        // от mortan:
-        // https://www.gameru.net/forum/index.php?s=&showtopic=23443&view=findpost&p=1677678
-        V->CalculateBones_Invalidate();
-        V->CalculateBones(true); // V->CalculateBones	();
-        Fmatrix& mL = V->LL_GetTransform(u16(boneL));
-        Fmatrix& mR = V->LL_GetTransform(u16(boneR));
+        if (auto pActor = smart_cast<CActor*>(H_Parent()); pActor && pActor->cam_Active() != pActor->cam_FirstEye())
+        {
+            // https://www.gameru.net/forum/index.php?s=&showtopic=23443&view=findpost&p=1677678
+            V->CalculateBones_Invalidate();
+            V->CalculateBones(true);
+        }
+        else
+        {
+            V->CalculateBones();
+        }
+
+        const Fmatrix& mL = V->LL_GetTransform(u16(boneL));
+        const Fmatrix& mR = V->LL_GetTransform(u16(boneR));
         // Calculate
         Fmatrix mRes;
         Fvector R, D, N;
@@ -539,6 +542,7 @@ void CWeapon::Load(LPCSTR section)
         laser_light_render = ::Render->light_create();
         laser_light_render->set_type(IRender_Light::SPOT);
         laser_light_render->set_shadow(true);
+        laser_light_render->set_moveable(true);
 
         const Fcolor clr = READ_IF_EXISTS(pSettings, r_fcolor, m_light_section, b_r2 ? "color_r2" : "color", (Fcolor{1.0f, 0.0f, 0.0f, 1.0f}));
         laser_fBrightness = clr.intensity();
@@ -573,6 +577,7 @@ void CWeapon::Load(LPCSTR section)
         flashlight_render = ::Render->light_create();
         flashlight_render->set_type(IRender_Light::SPOT);
         flashlight_render->set_shadow(true);
+        flashlight_render->set_moveable(true);
 
         const Fcolor clr = READ_IF_EXISTS(pSettings, r_fcolor, m_light_section, b_r2 ? "color_r2" : "color", (Fcolor{0.6f, 0.55f, 0.55f, 1.0f}));
         flashlight_fBrightness = clr.intensity();
@@ -587,6 +592,7 @@ void CWeapon::Load(LPCSTR section)
             (IRender_Light::LT)(READ_IF_EXISTS(pSettings, r_u8, m_light_section, "omni_type",
                                                2))); // KRodin: вообще omni это обычно поинт, но поинт светит во все стороны от себя, поэтому тут спот используется по умолчанию.
         flashlight_omni->set_shadow(false);
+        flashlight_omni->set_moveable(true);
 
         const Fcolor oclr = READ_IF_EXISTS(pSettings, r_fcolor, m_light_section, b_r2 ? "omni_color_r2" : "omni_color", (Fcolor{1.0f, 1.0f, 1.0f, 0.0f}));
         flashlight_omni->set_color(oclr);
@@ -603,7 +609,8 @@ void CWeapon::Load(LPCSTR section)
     dof_params_zoom = (READ_IF_EXISTS(pSettings, r_fvector4, section, "dof_zoom_params", (Fvector4{0, 0, 0, 1.6}))); //(Fvector4{0.1, 0.4, 0, 1.6})
     dof_params_reload = (READ_IF_EXISTS(pSettings, r_fvector4, section, "dof_reload_params", (Fvector4{0, 0, 1, 0})));
 
-    dont_interrupt_shot_anm = READ_IF_EXISTS(pSettings, r_bool, section, "dont_interrupt_shot_anm", true);
+    dont_interrupt_shot_anm = READ_IF_EXISTS(pSettings, r_bool, section, "dont_interrupt_shot_anm", false);
+    is_gunslinger_weapon = READ_IF_EXISTS(pSettings, r_bool, section, "is_gunslinger_weapon", false);
 }
 
 void CWeapon::LoadFireParams(LPCSTR section, LPCSTR prefix)
@@ -1402,15 +1409,11 @@ BOOL CWeapon::CheckForMisfire()
     if (rnd < mp)
     {
         FireEnd();
-
         SwitchMisfire(true);
-
         return TRUE;
     }
     else
-    {
         return FALSE;
-    }
 }
 
 void CWeapon::Reload() { OnZoomOut(); }
@@ -1773,7 +1776,7 @@ void CWeapon::create_physic_shell()
 {
     // xrKrodin: Временный? "фикс" для оружия из ганслингера, валяющегося на земле. По непонятным причинам (много костей или хз от чего ещё) в некоторых случаях при рассчетах
     // физики происходят краши в ode которые исправить невозможно.
-    if (IS_OGSR_GA)
+    if (is_gunslinger_weapon || IS_OGSR_GA)
     {
         auto vis = smart_cast<IKinematics*>(Visual());
         auto& rootBoneData = vis->LL_GetData(vis->LL_GetBoneRoot());
@@ -2041,24 +2044,9 @@ float CWeapon::GetConditionToShow() const
     return (GetCondition()); // powf(GetCondition(),4.0f));
 }
 
-BOOL CWeapon::ParentMayHaveAimBullet()
+bool CWeapon::ParentIsActor() const
 {
-    CObject* O = H_Parent();
-    if (!O)
-        return FALSE;
-    CEntityAlive* EA = smart_cast<CEntityAlive*>(O);
-    return EA->cast_actor() != 0;
-}
-
-BOOL CWeapon::ParentIsActor()
-{
-    CObject* O = H_Parent();
-    if (!O)
-        return FALSE;
-    CEntityAlive* EA = smart_cast<CEntityAlive*>(O);
-    if (!EA)
-        return FALSE;
-    return EA->cast_actor() != 0;
+    return smart_cast<const CActor*>(H_Parent()) != nullptr;
 }
 
 const float& CWeapon::hit_probability() const

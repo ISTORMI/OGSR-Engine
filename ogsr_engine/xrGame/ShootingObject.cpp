@@ -93,6 +93,7 @@ void CShootingObject::Light_Create()
         light_render->set_shadow(true);
     else
         light_render->set_shadow(false);
+    light_render->set_moveable(true);
 }
 
 void CShootingObject::Light_Destroy() { light_render.destroy(); }
@@ -432,7 +433,7 @@ void CShootingObject::FireBullet(const Fvector& pos, const Fvector& shot_dir, fl
     bool aim_bullet;
     if (m_bUseAimBullet)
     {
-        if (ParentMayHaveAimBullet())
+        if (ParentIsActor())
         {
             if (m_fPredBulletTime == 0.0)
             {

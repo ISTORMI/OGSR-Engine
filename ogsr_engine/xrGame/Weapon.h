@@ -454,6 +454,8 @@ protected:
 
     //Давать ли доиграть анимацию выстрела после выстрела (надо для анимаций с вылетающими гильзами)
     bool dont_interrupt_shot_anm{};
+    //Является ли это оружие оружием из Gunslinger Mod
+    bool is_gunslinger_weapon{};
 
     //////////////////////////////////////////////////////////////////////////
     // партиклы
@@ -550,8 +552,7 @@ public:
     virtual bool use_crosshair() const { return true; }
     bool show_crosshair();
     bool show_indicators();
-    virtual BOOL ParentMayHaveAimBullet();
-    virtual BOOL ParentIsActor();
+    virtual bool ParentIsActor() const override;
 
 private:
     float m_hit_probability[egdCount];

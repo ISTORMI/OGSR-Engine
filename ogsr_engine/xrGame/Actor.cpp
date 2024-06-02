@@ -1008,6 +1008,9 @@ void CActor::shedule_Update(u32 DT)
     if (Level().CurrentControlEntity() == this && !m_holder)
     //------------------------------------------------
     {
+        CCF_Skeleton* skeleton = smart_cast<CCF_Skeleton*>(CFORM());
+        skeleton->Calculate();
+
         g_cl_CheckControls(mstate_wishful, NET_SavedAccel, NET_Jump, dt);
 
         g_cl_Orientate(mstate_real, dt);
@@ -1855,9 +1858,9 @@ bool CActor::is_actor_running()
 
 bool CActor::is_actor_sprinting()
 {
-    return mstate_real & (mcJump | mcFall | mcLanding | mcLanding2 | mcLookout | mcCrouch | mcAccel | mcClimb | mcLStrafe | mcRStrafe) ? false :
-        (mstate_real & mcFwd && mstate_real & mcSprint)                                                                                ? true :
-                                                                                                                                         false;
+    return mstate_real & (mcJump | mcFall | mcLanding | mcLanding2 | mcLookout | mcCrouch | mcAccel | mcClimb) ? false :
+        (mstate_real & (mcFwd | mcLStrafe | mcRStrafe) && mstate_real & mcSprint)                              ? true :
+                                                                                                                 false;
 }
 
 bool CActor::is_actor_crouching()
