@@ -6,6 +6,7 @@
 #include "tri-colliderKNoOPC\__aabb_tri.h"
 
 #include "phaicharacter.h"
+#include "ai/stalker/ai_stalker.h"
 
 #ifdef DEBUG
 #include "../xr_3da/StatGraph.h"
@@ -174,6 +175,13 @@ void CPHAICharacter::InitContact(dContact* c, bool& do_collide, u16 material_idx
     {
         b_on_object = true;
         b_valide_wall_contact = false;
+        auto ch1 = static_cast<CPHCharacter*>(D1->ph_object);
+        auto ch2 = static_cast<CPHCharacter*>(D2->ph_object);
+        if ((ch1->RestrictionType() == CPHCharacter::rtStalker ||
+             ch1->RestrictionType() == CPHCharacter::rtStalkerSmall) &&
+            (ch2->RestrictionType() == CPHCharacter::rtStalker ||
+             ch2->RestrictionType() == CPHCharacter::rtStalkerSmall))
+            do_collide = false;
     }
 #ifdef DEBUG
     if (ph_dbg_draw_mask.test(phDbgNeverUseAiPhMove))

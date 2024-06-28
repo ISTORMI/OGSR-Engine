@@ -75,6 +75,7 @@ struct CUITradeInternal
 };
 
 bool others_zero_trade;
+bool hide_untradeable;
 
 CUITradeWnd::CUITradeWnd() : m_bDealControlsVisible(false), m_pTrade(NULL), m_pOthersTrade(NULL), bStarted(false)
 {
@@ -83,6 +84,8 @@ CUITradeWnd::CUITradeWnd() : m_bDealControlsVisible(false), m_pTrade(NULL), m_pO
     Hide();
     SetCurrentItem(NULL);
     others_zero_trade = !!READ_IF_EXISTS(pSettings, r_bool, "trade", "others_zero_trade", false);
+    hide_untradeable = READ_IF_EXISTS( pSettings, r_bool, "trade", "hide_untradeable", false );
+    //m_sStMoneyDescr = CStringTable().translate("ui_st_money_descr").c_str();
 }
 
 CUITradeWnd::~CUITradeWnd()
@@ -631,10 +634,12 @@ void CUITradeWnd::FillList(TIItemContainer& cont, CUIDragDropListEx& dragDropLis
     for (; it != it_e; ++it)
     {
         CInventoryItem* item = *it;
+        bool canTrade = CanMoveToOther( item, our );
+		if ( hide_untradeable && our && !canTrade ) // dsh:
+		  continue;
         CUICellItem* itm = create_cell_item(item);
         if (item->m_highlight_equipped)
             itm->m_select_equipped = true;
-        bool canTrade = CanMoveToOther(item, our);
         ColorizeItem(itm, canTrade, itm->m_select_equipped);
         dragDropList.SetItem(itm);
     }

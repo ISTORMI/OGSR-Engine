@@ -2,6 +2,7 @@
 
 #include "DiscordRPC.hpp"
 #include "../xr_3da/x_ray.h"
+#include "../xrGame/string_table.h"
 
 constexpr const char* DISCORD_LIBRARY_DLL{"discord-rpc.dll"};
 
@@ -67,7 +68,13 @@ void DiscordRPC::Update(const char* level_name_translated, const char* level_nam
     else
         presenseInfo.largeImageKey = "main_image"; //большая картинка
     presenseInfo.smallImageKey = "main_image_small"; //маленькая картинка
-    presenseInfo.smallImageText = Core.GetEngineVersion(); //версия движка на маленькой картинке
+    //presenseInfo.smallImageText = Core.GetEngineVersion(); //версия движка на маленькой картинке
+
+    std::string engine_version = Core.GetEngineVersion();
+    std::string discord_status = CStringTable().translate("localization_version_ukr").c_str();
+    std::string new_small_image_text = discord_status + " | " + engine_version;
+
+    presenseInfo.smallImageText = new_small_image_text.c_str();
 
     std::string task_txt, lname, lname_and_task;
 

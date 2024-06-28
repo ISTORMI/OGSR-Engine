@@ -214,8 +214,8 @@ void CCar::OnKeyboardHold(int cmd)
 
     switch (cmd)
     {
-    case kSHOWHUD:
-    case kHIDEHUD:
+    case kCAM_ZOOM_IN:
+    case kCAM_ZOOM_OUT:
     case kUP:
     case kDOWN:
     case kLEFT:

@@ -378,7 +378,9 @@ private:
     CCameraBase* camera[3];
     CCameraBase* active_camera;
 
-    Fvector m_camera_position;
+	Fvector					m_camera_position_firsteye;
+	Fvector					m_camera_position_lookat;
+	Fvector					m_camera_position_free;
 
 public:
     IC CCameraBase* get_active_camera() { return active_camera; };

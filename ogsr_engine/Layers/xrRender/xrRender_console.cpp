@@ -4,7 +4,9 @@
 #include "dxRenderDeviceRender.h"
 
 u32 r2_SmapSize = 2048;
-constexpr xr_token SmapSizeToken[] = {{"1536x1536", 1536},
+constexpr xr_token SmapSizeToken[] = {{"128x128", 128},
+                                      //{"1024x1024", 512},
+                                      {"1536x1536", 1536},
                                       {"2048x2048", 2048},
                                       {"2560x2560", 2560},
                                       {"3072x3072", 3072},
@@ -38,7 +40,7 @@ float ps_r2_img_saturation = 1.0f;
 Fvector ps_r2_img_cg{0.5f, 0.5f, 0.5f};
 
 u32 ps_Preset = 2;
-constexpr xr_token qpreset_token[] = {{"Minimum", 0}, {"Low", 1}, {"Default", 2}, {"High", 3}, {"Extreme", 4}, {0, 0}};
+constexpr xr_token qpreset_token[] = {{"Minimum", 0}, /*{"Low", 1},*/ {"Default", 2}, {"High", 3}, {"Extreme", 4}, {0, 0}};
 
 u32 ps_r_ssao = 3;
 constexpr xr_token qssao_token[] = {{"st_opt_off", 0},
@@ -434,7 +436,7 @@ public:
         switch (*value)
         {
         case 0: xr_strcpy(_cfg, "rspec_minimum.ltx"); break;
-        case 1: xr_strcpy(_cfg, "rspec_low.ltx"); break;
+        //case 1: xr_strcpy(_cfg, "rspec_low.ltx"); break;
         case 2: xr_strcpy(_cfg, "rspec_default.ltx"); break;
         case 3: xr_strcpy(_cfg, "rspec_high.ltx"); break;
         case 4: xr_strcpy(_cfg, "rspec_extreme.ltx"); break;
@@ -614,11 +616,22 @@ void xrRender_initconsole()
 #endif // DEBUG
     CMD4(CCC_Float, "r__wallmark_ttl", &ps_r__WallmarkTTL, 1.0f, 10.f * 60.f);
 
-    CMD4(CCC_Float, "r__geometry_lod", &ps_r__LOD, 1.f, 3.f); // AVO: extended from 1.2f to 3.f
+#if RENDER == R_R1
+    CMD4(CCC_Integer, "r__supersample", &ps_r__Supersample, 1, 8);
+#endif
+
+    //Fvector tw_min, tw_max;
+
+#if RENDER == R_R2
+    // Texture manager
+    CMD4(CCC_Integer, "texture_lod", &psTextureLOD, 0, 4);
+#endif
+
+    CMD4(CCC_Float, "r__geometry_lod", &ps_r__LOD, 0.3f, 5.f); // AVO: extended from 1.2f to 3.f
     //.	CMD4(CCC_Float,		"r__geometry_lod_pow",	&ps_r__LOD_Power,			0,		2		);
 
     CMD4(CCC_detail_reset, "r__detail_density", &ps_current_detail_density, 0.06f /*0.2f*/, 1.0f);
-    CMD4(CCC_detail_reset, "r__detail_scale", &ps_current_detail_scale, 0.2f, 3.0f);
+    CMD4(CCC_detail_reset, "r__detail_scale", &ps_current_detail_scale, 0.0f, 3.0f);
 
 #ifdef DEBUG
     CMD4(CCC_Float, "r__detail_l_ambient", &ps_r__Detail_l_ambient, .5f, .95f);
@@ -776,6 +789,8 @@ void xrRender_initconsole()
     CMD3(CCC_Mask, "r2_steep_parallax", &ps_r2_ls_flags, R2FLAG_STEEP_PARALLAX);
 
     CMD3(CCC_Token, "r2_sun_quality", &ps_r_sun_quality, qsun_quality_token);
+
+    CMD3(CCC_Mask, "r2_soft_particles", &ps_r2_ls_flags, R2FLAG_SOFT_PARTICLES);
 
     CMD3(CCC_Mask, "r2_visor_refl", &ps_r2_ls_flags_ext, R2FLAG_VISOR_REFL);
     CMD3(CCC_Mask, "r2_visor_refl_control", &ps_r2_ls_flags_ext, R2FLAG_VISOR_REFL_CONTROL);

@@ -168,13 +168,23 @@ void xrCore::_destroy()
     }
 }
 
+#include <ctime>
+#include <cstdio>
+#include <cstring>
+
 const char* xrCore::GetEngineVersion()
 {
     static string256 buff;
+    std::time_t now = std::time(nullptr);
+    std::tm* currentTime = std::localtime(&now);
+
+    char formattedDate[8];
+    std::strftime(formattedDate, sizeof(formattedDate), "%d%b%y", currentTime);
+
     if (strlen(APPVEYOR_BUILD_VERSION))
-        std::snprintf(buff, sizeof(buff), APPVEYOR_BUILD_VERSION " (%s) from repo: [" APPVEYOR_REPO_NAME "]", GetBuildConfiguration());
+        std::snprintf(buff, sizeof(buff), "%s (%s) from repo: [%s]", APPVEYOR_BUILD_VERSION, GetBuildConfiguration(), APPVEYOR_REPO_NAME);
     else
-        std::snprintf(buff, sizeof(buff), "[OGSR Engine %s (build: " __DATE__ " " __TIME__ ")]", GetBuildConfiguration());
+        std::snprintf(buff, sizeof(buff), "[OGSR Engine %s (build: %s)]", GetBuildConfiguration(), __DATE__, __TIME__);
     return buff;
 }
 
