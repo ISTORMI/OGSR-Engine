@@ -161,7 +161,6 @@ bool InventoryUtilities::FreeRoom_inBelt(TIItemContainer& item_list, PIItem _ite
                 }
             }
         }
-
         //разместить элемент на найденном месте
         if (found_place)
         {
